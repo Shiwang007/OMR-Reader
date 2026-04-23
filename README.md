@@ -1,4 +1,4 @@
-# Medjeex OMR Engine
+# OMR Reader
 
 Advanced Optical Mark Recognition (OMR) engine designed for high-accuracy processing of assessment sheets, even with heavy teacher annotations and variable scan quality.
 
@@ -30,4 +30,4 @@ Advanced Optical Mark Recognition (OMR) engine designed for high-accuracy proces
 - imutils
 
 ---
-Built for **Medjeex Advanced Agentic Coding**.
+Built by Shiwang007.
