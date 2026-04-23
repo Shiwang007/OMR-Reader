@@ -1,0 +1,9 @@
+__pycache__/
+*.jpg
+*.jpeg
+*.png
+*.json
+!templates/template.json
+.vscode/
+venv/
+.DS_Store
