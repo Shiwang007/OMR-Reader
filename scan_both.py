@@ -1,10 +1,8 @@
-from src.processor import OMREngine
+from src.processor1 import OMREngine
 import json, cv2, os
 
-images = [
-    r"f:\Medjeex\Medjeex-OMR-Engine\WhatsApp Image 2026-04-23 at 3.17.12 PM.jpeg",
-    r"f:\Medjeex\Medjeex-OMR-Engine\WhatsApp Image 2026-04-23 at 5.20.49 PM.jpeg"
-]
+omr_dir = r"f:\Medjeex\Medjeex-OMR-Engine\omr"
+images = [os.path.join(omr_dir, f) for f in os.listdir(omr_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
 
 engine = OMREngine()
 
@@ -16,7 +14,8 @@ for img_path in images:
     
     # Save verification image
     visual = engine.visualize_results(img_path, results)
-    save_name = filename.replace(".jpeg", "_verified.jpg")
+    base_name = os.path.splitext(filename)[0]
+    save_name = f"{base_name}_verified.jpg"
     cv2.imwrite(os.path.join(r"f:\Medjeex\Medjeex-OMR-Engine\data", save_name), visual)
     
     total = 0
@@ -27,7 +26,7 @@ for img_path in images:
     print(f"TOTAL: {total}/180")
     
     # Save results
-    res_name = filename.replace(".jpeg", "_results.json")
+    res_name = f"{base_name}_results.json"
     with open(os.path.join(r"f:\Medjeex\Medjeex-OMR-Engine\data", res_name), "w") as f:
         json.dump(results, f, indent=2)
 

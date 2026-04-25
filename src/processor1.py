@@ -6,31 +6,34 @@ from typing import Dict
 
 class OMREngine:
     """
-    OMR Engine — High-Resolution (2480x3442) with self-aligning Y-shift.
-    Template uses absolute coordinates from Image (2).jpg.
-    On new scans, we detect the bold header line and compute a Y-shift.
+    OMR Engine — High-Resolution (2480x3442)
+    Now supports both Y-shift and X-shift alignment.
     """
+
     def __init__(self):
-        self.fill_threshold = 0.40   # Absolute minimum density for a filled bubble
-        self.relative_ratio = 1.5    # A filled bubble must be 1.5x denser than the row median
+        self.fill_threshold = 0.40
+        self.relative_ratio = 1.5
         self.template_path = r"f:\Medjeex\Medjeex-OMR-Engine\templates\template.json"
 
+    # -------------------- Y SHIFT --------------------
     def compute_y_shift(self, image: np.ndarray) -> int:
-        """
-        Compute Y-shift using proportional positioning.
-        In the calibration image (3442px tall), the first question row
-        is at Y=960.4, which is 27.9% of the image height.
-        We use this ratio to estimate the shift for any scan.
-        """
         h = image.shape[0]
-        # Calibration reference
+
         cal_h = 3442
         cal_first_row = 960.4
-        # Expected first row Y in this scan (proportional)
+
         expected_first_row = cal_first_row * (h / cal_h)
-        # The shift is the difference from the calibration coordinates
         return int(round(expected_first_row - cal_first_row))
 
+    # -------------------- X SHIFT (NEW) --------------------
+    def compute_x_shift(self, image: np.ndarray) -> int:
+        """
+        Positive value → shift RIGHT
+        Tune this once (10–20 works for your case)
+        """
+        return 50  # 🔥 adjust if needed
+
+    # -------------------- MAIN --------------------
     def process_full_sheet(self, image_path: str) -> Dict:
         image = cv2.imread(image_path)
         if image is None:
@@ -39,13 +42,15 @@ class OMREngine:
         with open(self.template_path, 'r') as f:
             template = json.load(f)
 
-        # Compute global Y-shift using proportional positioning
         y_shift = self.compute_y_shift(image)
+        x_shift = self.compute_x_shift(image)   # ✅ NEW
 
-        # Prepare thresholded image for bubble reading
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         blurred = cv2.medianBlur(gray, 3)
-        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        _, thresh = cv2.threshold(
+            blurred, 0, 255,
+            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+        )
 
         h_img, w_img = image.shape[:2]
         final_results = {}
@@ -53,17 +58,20 @@ class OMREngine:
         for subj, questions in template.items():
             subj_results = {}
 
-            # Fine-tune shift per subject block using centroid alignment
+            # -------- Fine Y alignment --------
             fine_shifts = []
             for q_idx in range(5, min(40, len(questions))):
                 for opt_idx in range(4):
                     coord = questions[q_idx][opt_idx]
-                    ax = int(coord['abs_x'])
+
+                    ax = int(coord['abs_x']) + x_shift   # ✅ UPDATED
                     ay = int(coord['abs_y']) + y_shift
-                    r = 25  # search window radius
+
+                    r = 25
                     if r < ay < h_img - r and r < ax < w_img - r:
                         roi = thresh[ay - r:ay + r, ax - r:ax + r]
                         fill = cv2.countNonZero(roi) / float(roi.size)
+
                         if fill > 0.25:
                             M = cv2.moments(roi)
                             if M["m00"] > 0:
@@ -72,29 +80,33 @@ class OMREngine:
 
             total_shift = y_shift + (int(np.median(fine_shifts)) if fine_shifts else 0)
 
-            # Read each bubble using smart-winner logic
+            # -------- Bubble Reading --------
             global_q_offset = list(template.keys()).index(subj) * len(questions)
+
             for q_idx, row_coords in enumerate(questions):
                 q_num = global_q_offset + q_idx + 1
                 densities = []
+
                 for opt_idx, coord in enumerate(row_coords):
-                    ax = int(coord['abs_x'])
+                    ax = int(coord['abs_x']) + x_shift   # ✅ UPDATED
                     ay = int(coord['abs_y']) + total_shift
+
                     size = 16
                     if size < ay < h_img - size and size < ax < w_img - size:
                         roi = thresh[ay - size:ay + size, ax - size:ax + size]
                         density = cv2.countNonZero(roi) / float(roi.size)
                     else:
                         density = 0.0
+
                     densities.append(density)
 
-                # Smart winner: find options that are significantly above baseline
                 if not densities or max(densities) < 0.01:
                     subj_results[q_num] = "SKIPPED"
                     continue
 
                 baseline = np.median(densities)
                 marked = []
+
                 for i, d in enumerate(densities):
                     if d > self.fill_threshold and (baseline < 0.01 or d / baseline > self.relative_ratio):
                         marked.append(["A", "B", "C", "D"][i])
@@ -110,8 +122,8 @@ class OMREngine:
 
         return final_results
 
+    # -------------------- VISUALIZATION --------------------
     def visualize_results(self, image_path: str, results: Dict) -> np.ndarray:
-        """Draw colored dots where the engine looked on each bubble."""
         image = cv2.imread(image_path)
         if image is None:
             return None
@@ -120,10 +132,14 @@ class OMREngine:
             template = json.load(f)
 
         y_shift = self.compute_y_shift(image)
+        x_shift = self.compute_x_shift(image)   # ✅ NEW
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         blurred = cv2.medianBlur(gray, 3)
-        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        _, thresh = cv2.threshold(
+            blurred, 0, 255,
+            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+        )
 
         h_img, w_img = image.shape[:2]
         colors = [(0, 0, 255), (0, 180, 0), (255, 0, 0), (0, 165, 255)]
@@ -131,15 +147,18 @@ class OMREngine:
         for si, (subj, questions) in enumerate(template.items()):
             color = colors[si % 4]
 
-            # Recalculate fine-shift
             fine_shifts = []
             for q_idx in range(5, min(40, len(questions))):
                 for opt_idx in range(4):
                     coord = questions[q_idx][opt_idx]
-                    ax, ay = int(coord['abs_x']), int(coord['abs_y']) + y_shift
+
+                    ax = int(coord['abs_x']) + x_shift   # ✅ UPDATED
+                    ay = int(coord['abs_y']) + y_shift
+
                     r = 25
                     if r < ay < h_img - r and r < ax < w_img - r:
                         roi = thresh[ay - r:ay + r, ax - r:ax + r]
+
                         if cv2.countNonZero(roi) / float(roi.size) > 0.25:
                             M = cv2.moments(roi)
                             if M["m00"] > 0:
@@ -149,7 +168,7 @@ class OMREngine:
 
             for row in questions:
                 for coord in row:
-                    cx = int(coord['abs_x'])
+                    cx = int(coord['abs_x']) + x_shift   # ✅ UPDATED
                     cy = int(coord['abs_y']) + total_shift
                     cv2.circle(image, (cx, cy), 8, color, -1)
 
