@@ -3,6 +3,7 @@ __pycache__/
 *.jpeg
 *.png
 *.json
+*.pdf
 !templates/template.json
 .vscode/
 venv/
