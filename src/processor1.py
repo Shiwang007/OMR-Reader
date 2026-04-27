@@ -31,7 +31,7 @@ class OMREngine:
         Positive value → shift RIGHT
         Tune this once (10–20 works for your case)
         """
-        return 50  # 🔥 adjust if needed
+        return 22  # 🔥 adjust if needed
 
     # -------------------- MAIN --------------------
     def process_full_sheet(self, image_path: str) -> Dict:

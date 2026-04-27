@@ -1,7 +1,7 @@
 import json
 import os
 import subprocess
-import time
+from datetime import datetime
 
 # Paths
 DATA_DIR = r"f:\Medjeex\Medjeex-OMR-Engine\data"
@@ -76,6 +76,9 @@ def generate_omr_html(student_name, student_data, answer_key, template):
         subject_placeholders[f"{prefix}_SCORE"] = subj_score
         stats["total_score"] += subj_score
 
+    # Hardcoded date as requested
+    display_date = "25-04-2026"
+    
     html = template
     html = html.replace("{{STUDENT_NAME}}", student_name)
     html = html.replace("{{TOTAL_SCORE}}", str(stats["total_score"]))
@@ -83,6 +86,7 @@ def generate_omr_html(student_name, student_data, answer_key, template):
     html = html.replace("{{RIGHT}}", str(stats["total_correct"]))
     html = html.replace("{{WRONG}}", str(stats["total_wrong"]))
     html = html.replace("{{UNATTEMPTED}}", str(stats["total_skipped"]))
+    html = html.replace("{{DATE}}", display_date)
     
     for key, val in subject_placeholders.items():
         html = html.replace(f"{{{{{key}}}}}", str(val))
@@ -90,8 +94,6 @@ def generate_omr_html(student_name, student_data, answer_key, template):
     return html
 
 def convert_to_pdf(html_path, pdf_path):
-    # Use headless Edge to print to PDF
-    # --no-margins is often helpful for custom layouts
     cmd = [
         EDGE_PATH,
         "--headless",
@@ -114,9 +116,9 @@ with open(TEMPLATE_PATH, 'r', encoding='utf-8') as f:
 with open(ANSWER_KEY_PATH, 'r') as f:
     answer_key = json.load(f)
 
-print("Starting PDF generation...")
+print(f"Starting PDF generation for date: 25-04-2026...")
 for filename in os.listdir(DATA_DIR):
-    if filename.endswith(".json") and filename != "answer_key.json":
+    if filename.endswith(".json") and not filename.startswith("Image") and filename != "answer_key.json":
         student_name = filename.replace(".json", "")
         with open(os.path.join(DATA_DIR, filename), 'r') as f:
             student_data = json.load(f)
@@ -124,22 +126,18 @@ for filename in os.listdir(DATA_DIR):
         print(f"Processing {student_name}...")
         html_content = generate_omr_html(student_name, student_data, answer_key, template_content)
         
-        # Save temp HTML
         temp_html_path = os.path.join(HTML_DIR, f"temp_{student_name}.html")
         with open(temp_html_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
-        # Convert to PDF
         pdf_filename = f"{student_name}_Scorecard.pdf"
         pdf_path = os.path.join(PDF_DIR, pdf_filename)
         
-        # We need the full absolute path for Edge CLI
         abs_html_path = os.path.abspath(temp_html_path)
         abs_pdf_path = os.path.abspath(pdf_path)
         
         if convert_to_pdf(abs_html_path, abs_pdf_path):
             print(f"  - Generated: {pdf_filename}")
-            # Clean up temp HTML if desired, but keeping it for now
         else:
             print(f"  - FAILED: {student_name}")
 

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medjeex JEE Mains OMR - FILLED SAMPLE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #1e293b; }
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background-color: #f1f5f9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { width: 210mm; height: 296mm; background: white; padding: 15mm; box-sizing: border-box; position: relative; margin: 0 auto; page-break-after: always; overflow: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page::before { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url("./Medjeex_Logo.png"); background-repeat: no-repeat; background-position: center bottom 10mm; background-size: 80mm; opacity: 0.08; z-index: 0; pointer-events: none; }
+        .marker { position: absolute; width: 10mm; height: 10mm; background-color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; z-index: 1000; }
+        .top-left { top: 5mm; left: 5mm; } .top-right { top: 5mm; right: 5mm; } .bottom-left { bottom: 5mm; left: 5mm; } .bottom-right { bottom: 5mm; right: 5mm; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid var(--primary); padding-bottom: 8px; margin-bottom: 15px; }
+        .logo-area h1 { margin: 0; font-size: 26px; color: #2563eb; font-weight: 800; }
+        .exam-title { font-size: 18px; font-weight: 800; margin: 0; }
+        .candidate-box { display: grid; grid-template-columns: 2fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .input-field { border: 1px solid #cbd5e1; padding: 8px; height: 35px; display: flex; align-items: center; font-size: 11px; font-weight: 600; background: #f8fafc; }
+        .section-title { background: var(--primary); color: white; padding: 5px 12px; font-size: 14px; font-weight: 700; margin: 10px 0; text-transform: uppercase; display: flex; justify-content: space-between; }
+        .mcq-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .subject-block { border: 1px solid #e2e8f0; padding: 8px; border-radius: 4px; }
+        .mcq-row { display: flex; align-items: center; justify-content: center; margin-bottom: 5px; font-size: 12px; }
+        .q-num { width: 25px; font-weight: 700; color: #64748b; }
+        .bubbles { display: flex; gap: 8px; }
+        .bubble { width: 18px; height: 18px; border: 1.5px solid #1e293b; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+        .numerical-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .num-q-block { border: 1px solid #e2e8f0; padding: 4px; border-radius: 6px; margin-bottom: 4px; }
+        .num-header { font-size: 11px; font-weight: 800; margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; color: var(--primary); }
+        .numerical-box { display: flex; gap: 2px; justify-content: center; align-items: flex-start; }
+        .digit-col-wrapper { display: flex; flex-direction: column; align-items: center; }
+        .side-bubbles { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; }
+        .box-input { width: 20px; height: 14px; border: 1.2px solid #1e293b; margin-bottom: 2px; }
+        .num-bubble { width: 12px; height: 12px; border: 1px solid #1e293b; border-radius: 50%; font-size: 7px; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+        .special-col { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 16px; padding: 0 1px; }
+        .symbol-unit { display: flex; flex-direction: column; align-items: center; }
+        .symbol-label { font-weight: 800; font-size: 12px; margin-bottom: 2px; }
+        .sep-label { font-weight: 800; font-size: 14px; margin-top: 5px; }
+
+        /* MOCK FILL STYLES */
+        .filled { background-color: black !important; color: black !important; }
+        @media print { @page { margin: 0; } body { background: white; } .page { box-shadow: none; margin: 0; } }
+    </style>
+</head>
+<body>
+
+    <!-- PAGE 1 -->
+    <div class="page">
+        <div class="marker top-left"></div><div class="marker top-right"></div><div class="marker bottom-left"></div><div class="marker bottom-right"></div>
+        <div class="header">
+            <div class="logo-area"><h1>MEDJEEX</h1><p style="margin:2px 0; font-size:9px; color:#64748b; font-weight:600;">TRANSFORMING EDUCATION</p></div>
+            <div class="exam-info"><p class="exam-title">JEE MAINS (B.E./B.TECH)</p><p style="margin:0; font-size:11px; font-weight:700;">PAGE 1: SECTION - I (MCQs)</p></div>
+        </div>
+        <div class="candidate-box"><div class="input-field">CANDIDATE: ABHINAV KUMAR</div><div class="input-field">ROLL: 102345</div></div>
+        <div class="section-title"><span style="flex:1; text-align:center;">SECTION - I (MCQs) - FILLED SAMPLE</span></div>
+        <div class="mcq-container">
+            <script>
+                const answers = ["A", "B", "C", "D", "A", "B", "C", "D", "A", "B", "C", "D", "A", "B", "C", "D", "A", "B", "C", "D"];
+                const subjects = ["PHYSICS", "CHEMISTRY", "MATHEMATICS"];
+                for(let s=0; s<3; s++) {
+                    document.write('<div class="subject-block"><div style="font-size:12px; font-weight:800; margin-bottom:8px; text-align:center; color: var(--primary);">'+subjects[s]+'</div>');
+                    for(let i=1; i<=20; i++) {
+                        let qNum = (s*20) + i;
+                        let ans = answers[(i-1)%4];
+                        document.write(`<div class="mcq-row"><div class="q-num">${qNum}</div><div class="bubbles">`);
+                        ["A", "B", "C", "D"].forEach(opt => {
+                            let filled = (opt === ans) ? "filled" : "";
+                            document.write(`<div class="bubble ${filled}">${opt}</div>`);
+                        });
+                        document.write(`</div></div>`);
+                    }
+                    document.write('</div>');
+                }
+            </script>
+        </div>
+    </div>
+
+    <!-- PAGE 2 -->
+    <div class="page">
+        <div class="marker top-left"></div><div class="marker top-right"></div><div class="marker bottom-left"></div><div class="marker bottom-right"></div>
+        <div class="section-title" style="margin-top: 0;"><span style="flex:1; text-align:center;">SECTION - II (NUMERICAL) - FILLED SAMPLE</span></div>
+        <div class="numerical-grid">
+            <script>
+                // Sample Numerical: Q.61 = 125.40, Q.62 = -45.50, etc.
+                const numAnswers = [
+                    {val: "125.40"}, {val: "050.00"}, {val: "010.50"}, {val: "005.00"}, {val: "001.00"}, // Physics
+                    {val: "018.00"}, {val: "002.50"}, {val: "040.00"}, {val: "012.34"}, {val: "000.50"}, // Chemistry
+                    {val: "003.14"}, {val: "009.81"}, {val: "006.62"}, {val: "001.60"}, {val: "042.00"}  // Maths
+                ];
+
+                for(let s=0; s<3; s++){
+                    document.write('<div class="subj-col">');
+                    for(let q=0; q<5; q++){
+                        let qIdx = (s*5) + q;
+                        let qNum = 61 + qIdx;
+                        let ansStr = numAnswers[qIdx].val.replace('.', ''); // e.g. "12540"
+                        document.write(`
+                            <div class="num-q-block">
+                                <div class="num-header">Q.${qNum}</div>
+                                <div class="numerical-box">
+                                    ${[0,1,2,3].map(dIdx => {
+                                        let digit = parseInt(ansStr[dIdx]);
+                                        return `
+                                            <div class="digit-col-wrapper">
+                                                <div class="box-input">${digit}</div>
+                                                <div class="side-bubbles">
+                                                    ${Array.from({length:10}, (_,i)=>`<div class="num-bubble ${i===digit?'filled':''}">${i}</div>`).join('')}
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                    <div class="special-col">
+                                        <div class="symbol-unit"><div class="symbol-label">-</div><div class="num-bubble"></div></div>
+                                        <div class="sep-label">.</div>
+                                        <div class="symbol-unit"><div class="num-bubble filled"></div></div>
+                                    </div>
+                                    ${[4,5].map(dIdx => {
+                                        let digit = parseInt(ansStr[dIdx]);
+                                        return `
+                                            <div class="digit-col-wrapper">
+                                                <div class="box-input">${digit}</div>
+                                                <div class="side-bubbles">
+                                                    ${Array.from({length:10}, (_,i)=>`<div class="num-bubble ${i===digit?'filled':''}">${i}</div>`).join('')}
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `);
+                    }
+                    document.write('</div>');
+                }
+            </script>
+        </div>
+    </div>
+</body>
+</html>
