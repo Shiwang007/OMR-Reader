@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medjeex OMR Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="app-container">
+        <!-- Header & Stepper -->
+        <header class="header">
+            <div class="brand">
+                <div class="logo"><i data-lucide="scan-line"></i></div>
+                <div class="brand-text">
+                    <h1>Medjeex OMR Studio</h1>
+                    <span class="version">v2.0 PRO</span>
+                </div>
+            </div>
+            <nav class="stepper">
+                <div class="step active" data-step="1">
+                    <span class="step-num">1</span>
+                    <span class="step-lbl">Choose Exam</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="step" data-step="2">
+                    <span class="step-num">2</span>
+                    <span class="step-lbl">Process OMR</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="step" data-step="3">
+                    <span class="step-num">3</span>
+                    <span class="step-lbl">Answer Key</span>
+                </div>
+                <div class="step-line"></div>
+                <div class="step" data-step="4">
+                    <span class="step-num">4</span>
+                    <span class="step-lbl">Generate</span>
+                </div>
+            </nav>
+        </header>
+
+        <!-- Main Workspace -->
+        <main id="main-content" class="content">
+            <!-- Step 1: Choose Exam -->
+            <section id="step-1" class="step-section active">
+                <div class="section-header">
+                    <h2>Select Examination Type</h2>
+                    <p>Choose the scoring logic and template for your batch.</p>
+                </div>
+                <div class="exam-grid">
+                    <div class="exam-card" onclick="selectExam('JEE')">
+                        <div class="exam-icon jee"><i data-lucide="atom"></i></div>
+                        <h3>JEE MAINS</h3>
+                        <p>300 Marks (+4 / -1)</p>
+                        <div class="badge">Professional</div>
+                    </div>
+                    <div class="exam-card" onclick="selectExam('NEET')">
+                        <div class="exam-icon neet"><i data-lucide="microscope"></i></div>
+                        <h3>NEET AITS</h3>
+                        <p>720 Marks (+4 / -1)</p>
+                        <div class="badge">Standard</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 2: Process OMR -->
+            <section id="step-2" class="step-section">
+                <div class="process-layout">
+                    <!-- Col 1: File Sidebar -->
+                    <aside class="file-sidebar">
+                        <div id="drop-zone" class="drop-zone">
+                            <i data-lucide="upload-cloud"></i>
+                            <p>Drop OMR scans here</p>
+                            <input type="file" id="file-input" multiple accept="image/*" hidden>
+                            <button class="btn-ghost" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                        </div>
+                        <div class="sidebar-meta">
+                            <span class="sidebar-title">BATCH FILES</span>
+                            <span id="file-count" class="file-count-badge">0</span>
+                        </div>
+                        <div id="file-list" class="file-list"></div>
+                    </aside>
+
+                    <!-- Col 2: OMR Preview -->
+                    <div class="preview-col">
+                        <div class="preview-topbar">
+                            <h3 id="current-filename">No File Selected</h3>
+                            <div class="zoom-controls">
+                                <button class="zoom-btn" onclick="zoomIn()" title="Zoom In"><i data-lucide="zoom-in"></i></button>
+                                <span id="zoom-level" class="zoom-label">100%</span>
+                                <button class="zoom-btn" onclick="zoomOut()" title="Zoom Out"><i data-lucide="zoom-out"></i></button>
+                                <button class="zoom-btn" onclick="zoomReset()" title="Fit"><i data-lucide="maximize-2"></i></button>
+                            </div>
+                        </div>
+                        <div class="preview-viewport" id="preview-viewport">
+                            <div id="loader" class="loader-overlay hidden">
+                                <div class="spinner"></div>
+                                <p>Processing...</p>
+                            </div>
+                            <div id="zoom-container" class="zoom-container">
+                                <img id="omr-preview" src="" alt="Upload an OMR scan to begin" draggable="false">
+                            </div>
+                        </div>
+                        <div class="calibration-bar">
+                            <div class="cal-group">
+                                <label>X Shift</label>
+                                <input type="number" value="0" id="shift-x" class="cal-input">
+                            </div>
+                            <div class="cal-group">
+                                <label>Y Shift</label>
+                                <input type="number" value="0" id="shift-y" class="cal-input">
+                            </div>
+                            <button class="btn-primary compact" onclick="reprocessImage()">
+                                <i data-lucide="refresh-cw"></i> Reprocess
+                            </button>
+                            <button class="btn-secondary compact" onclick="applyToAll()">Apply All</button>
+                        </div>
+                    </div>
+
+                    <!-- Col 3: Answer Panel -->
+                    <div class="answer-col">
+                        <div class="answer-topbar">
+                            <div class="answer-title">
+                                <i data-lucide="clipboard-list"></i>
+                                <span>Detected Answers</span>
+                            </div>
+                            <button class="btn-save" onclick="saveAnswerEdits()">
+                                <i data-lucide="save"></i> Save
+                            </button>
+                        </div>
+                        <div id="answer-panel" class="answer-panel">
+                            <div class="answer-empty">
+                                <i data-lucide="scan"></i>
+                                <p>Upload and process an OMR sheet to see detected answers here.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 3: Answer Key -->
+            <section id="step-3" class="step-section">
+                <div class="section-header">
+                    <h2>Upload Answer Key</h2>
+                    <p>Upload a JSON file with the correct answers for scoring.</p>
+                </div>
+                <div class="answer-key-workspace">
+                    <div id="key-upload-zone" class="key-upload-zone">
+                        <i data-lucide="file-json"></i>
+                        <h3>Drop Answer Key JSON</h3>
+                        <p>or click to browse</p>
+                        <input type="file" id="key-file-input" accept=".json" hidden>
+                        <button class="btn-ghost" onclick="document.getElementById('key-file-input').click()">Choose File</button>
+                    </div>
+                    <div id="key-preview" class="key-preview hidden">
+                        <div class="key-preview-header">
+                            <div class="key-file-info">
+                                <i data-lucide="check-circle-2" class="text-success"></i>
+                                <span id="key-filename">answer_key.json</span>
+                            </div>
+                            <button class="btn-ghost" onclick="clearAnswerKey()">
+                                <i data-lucide="x"></i> Remove
+                            </button>
+                        </div>
+                        <div id="key-content" class="key-content"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 4: Generate Report -->
+            <section id="step-4" class="step-section">
+                <div class="report-summary-card">
+                    <div class="summary-header">
+                        <h2>Final Result Generation</h2>
+                        <input type="text" id="exam-name" placeholder="Enter Mock Test Name (e.g. JEE-01)" class="exam-input">
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-lbl">Processed</span>
+                            <span class="stat-val" id="stat-total">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-lbl">Average</span>
+                            <span class="stat-val" id="stat-avg">--</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-lbl">Top Score</span>
+                            <span class="stat-val" id="stat-top">--</span>
+                        </div>
+                    </div>
+                    <div class="final-actions">
+                        <button class="btn-primary large" onclick="calculateFinal()">
+                            <i data-lucide="zap"></i> Calculate & Generate Reports
+                        </button>
+                        <div id="export-buttons" class="export-row hidden">
+                            <button class="btn-success" onclick="downloadLeaderboard()"><i data-lucide="table"></i> Download Leaderboard (CSV)</button>
+                            <button class="btn-success" onclick="downloadScoreCards()"><i data-lucide="file-text"></i> Download Scorecards (PDF)</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="footer-left">
+                <span id="status-text">Ready to start</span>
+            </div>
+            <div class="footer-right">
+                <button id="btn-back" class="btn-secondary" onclick="prevStep()" disabled>Back</button>
+                <button id="btn-next" class="btn-primary" onclick="nextStep()" disabled>Continue <i data-lucide="chevron-right"></i></button>
+            </div>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
