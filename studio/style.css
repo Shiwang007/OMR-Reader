@@ -181,6 +181,60 @@ body {
 }
 .preview-topbar h3 { font-size: 0.85rem; font-weight: 600; }
 
+/* Student Name Input */
+.filename-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+}
+.name-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--primary);
+}
+.student-name-input {
+    background: #f1f5f9;
+    border: 1px dashed #cbd5e1;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-md);
+    width: 100%;
+    max-width: 400px;
+    transition: all 0.2s;
+    cursor: text;
+}
+.student-name-input:hover {
+    background: #e2e8f0;
+    border-color: var(--primary);
+}
+.student-name-input:focus {
+    background: white;
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+.edit-hint-icon {
+    width: 14px;
+    height: 14px;
+    color: #94a3b8;
+    margin-left: -30px;
+    pointer-events: none;
+    opacity: 0.6;
+}
+.filename-wrapper:hover .edit-hint-icon {
+    color: var(--primary);
+    opacity: 1;
+}
+.student-name-input:focus {
+    background: white;
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+
 .zoom-controls { display: flex; align-items: center; gap: 0.3rem; }
 .zoom-btn {
     width: 28px; height: 28px;

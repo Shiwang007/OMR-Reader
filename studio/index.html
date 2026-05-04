@@ -12,7 +12,7 @@
     <div id="app" class="app-container">
         <!-- Header & Stepper -->
         <header class="header">
-            <div class="brand">
+            <div class="brand" onclick="goToStep(1)" style="cursor: pointer;">
                 <div class="logo"><i data-lucide="scan-line"></i></div>
                 <div class="brand-text">
                     <h1>Medjeex OMR Studio</h1>
@@ -87,7 +87,11 @@
                     <!-- Col 2: OMR Preview -->
                     <div class="preview-col">
                         <div class="preview-topbar">
-                            <h3 id="current-filename">No File Selected</h3>
+                            <div class="filename-wrapper">
+                                <i data-lucide="user" class="name-icon"></i>
+                                <input type="text" id="student-name-input" class="student-name-input" placeholder="Enter Student Name" oninput="handleNameChange(this.value)">
+                                <i data-lucide="edit-3" class="edit-hint-icon"></i>
+                            </div>
                             <div class="zoom-controls">
                                 <button class="zoom-btn" onclick="zoomIn()" title="Zoom In"><i data-lucide="zoom-in"></i></button>
                                 <span id="zoom-level" class="zoom-label">100%</span>
@@ -196,8 +200,9 @@
                             <i data-lucide="zap"></i> Calculate & Generate Reports
                         </button>
                         <div id="export-buttons" class="export-row hidden">
-                            <button class="btn-success" onclick="downloadLeaderboard()"><i data-lucide="table"></i> Download Leaderboard (CSV)</button>
-                            <button class="btn-success" onclick="downloadScoreCards()"><i data-lucide="file-text"></i> Download Scorecards (PDF)</button>
+                            <button class="btn-success" onclick="downloadLeaderboard()"><i data-lucide="table"></i> Leaderboard (CSV)</button>
+                            <button class="btn-success" onclick="downloadLeaderboardPDF()"><i data-lucide="file-text"></i> Leaderboard (PDF)</button>
+                            <button class="btn-success" onclick="downloadScoreCards()"><i data-lucide="file-text"></i> Scorecards (PDF)</button>
                         </div>
                     </div>
                 </div>

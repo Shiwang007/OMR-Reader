@@ -39,8 +39,8 @@
         .report-paper {
             background: white;
             width: 210mm;
-            min-height: 297mm;
-            padding: 10mm;
+            height: 297mm;
+            padding: 4mm 6mm;
             box-sizing: border-box;
             box-shadow: 0 10px 25px rgba(0,0,0,0.1);
             position: relative;
@@ -63,12 +63,12 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 5px;
+            margin-bottom: 2px;
         }
 
         .student-info h1 {
             margin: 0;
-            font-size: 20px;
+            font-size: 16px;
             color: var(--primary);
         }
 
@@ -82,7 +82,7 @@
         }
 
         .stat-val {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 700;
             display: block;
         }
@@ -115,10 +115,10 @@
 
         .subject-title {
             background: var(--slate-50);
-            padding: 4px;
+            padding: 2px;
             text-align: center;
             font-weight: 700;
-            font-size: 13px;
+            font-size: 10.5px;
             border-bottom: 1px solid var(--slate-200);
             color: var(--primary);
         }
@@ -135,19 +135,19 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 11px;
+            font-size: 8.5px;
         }
 
         th {
             text-align: left;
             color: #64748b;
-            padding: 4px;
+            padding: 2px;
             border-bottom: 1px solid var(--slate-200);
         }
 
         td {
-            padding: 0.4px 2px;
-            border-bottom: 1px dotted #e2e8f0;
+            padding: 0.1px 1.5px;
+            border-bottom: 1px dotted #f1f5f9;
         }
 
         .q-num {
@@ -164,13 +164,13 @@
 
         .status-dot {
             display: inline-block;
-            width: 17px;
-            height: 17px;
-            line-height: 17px;
+            width: 12px;
+            height: 12px;
+            line-height: 12px;
             border-radius: 50%;
             text-align: center;
             color: white;
-            font-size: 9px;
+            font-size: 7px;
         }
 
         .correct { background-color: var(--success); }
@@ -201,7 +201,7 @@
 </head>
 <body>
     <div class="report-paper">
-        <img src="f:\Medjeex\Medjeex-OMR-Engine\Medjeex_Logo.png" class="watermark" alt="Medjeex Logo">
+        <img src="{{LOGO_B64}}" class="watermark" alt="Medjeex Logo">
         <div class="header">
             <div class="student-info">
                 <h1>{{STUDENT_NAME}}</h1>

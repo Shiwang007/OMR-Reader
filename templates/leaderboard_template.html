@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leaderboard | {{EXAM_NAME}}</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 12px;
+    background: #fff;
+    color: #111;
+}
+
+.container {
+    max-width: 1000px;
+    margin: auto;
+    text-align: center;
+}
+
+/* HEADER */
+h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+}
+
+h2 {
+    margin: 4px 0 2px;
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.subtitle {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #555;
+    text-transform: uppercase;
+}
+
+/* LOGO */
+.logo-box {
+    width: 85px;
+    height: 85px;
+    margin: 6px auto 10px;
+}
+
+.logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* DIVIDER */
+.divider {
+    width: 100%;
+    height: 1px;
+    background: #ddd;
+    margin: 8px 0 12px;
+}
+
+/* TABLE */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 6px;
+    table-layout: fixed;
+}
+
+th {
+    background: #000;
+    color: #fff;
+    padding: 8px 4px;
+    border: 1px solid #333;
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+td {
+    padding: 6px 4px;
+    border: 1px solid #ccc;
+    text-align: center;
+}
+
+tr:nth-child(even) td {
+    background: #f7f7f7;
+}
+
+/* TOP 3 */
+tr:nth-child(1) td {
+    background: #fff4d6;
+    font-weight: 700;
+}
+tr:nth-child(2) td {
+    background: #eef6ff;
+}
+tr:nth-child(3) td {
+    background: #f7f7f7;
+}
+
+/* COLUMN WIDTHS */
+.rank-col { width: 40px; font-weight: 700; }
+.name-col { width: 160px; text-align: left; padding-left: 10px; }
+.score-col { width: 55px; font-weight: 700; }
+.pct-col { width: 50px; }
+.subj-col { width: 65px; }
+.stat-col { width: 60px; }
+
+@media print {
+    @page { size: A4; margin: 10mm; }
+    body { padding: 0; }
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+    <h1>MEDJEEX</h1>
+    <h2>{{EXAM_NAME}} LEADERBOARD</h2>
+    <div class="subtitle">{{EXAM_TYPE}} • {{DATE}}</div>
+
+    <div class="logo-box">
+        <img class="logo-img"
+        src="{{LOGO_B64}}"
+        alt="Medjeex Logo">
+    </div>
+
+    <div class="divider"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th class="rank-col">Rank</th>
+                <th class="name-col">Name</th>
+                <th class="score-col">Score</th>
+                <th class="pct-col">%</th>
+                <th class="subj-col">{{SUBJ1}}</th>
+                <th class="subj-col">{{SUBJ2}}</th>
+                <th class="subj-col">{{SUBJ3}}</th>
+                <th class="stat-col">Attempt</th>
+                <th class="stat-col">Correct</th>
+                <th class="stat-col">Wrong</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ROWS}}
+        </tbody>
+    </table>
+
+</div>
+</body>
+</html>

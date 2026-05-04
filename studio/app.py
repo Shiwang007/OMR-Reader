@@ -42,6 +42,22 @@ neet_engine = NEETOMREngine()
 JEE_DEFAULTS = {"x": jee_engine.X_SHIFT, "y": jee_engine.Y_SHIFT}
 NEET_DEFAULTS = {"x": neet_engine.X_SHIFT, "y": neet_engine.Y_SHIFT}
 
+@app.post("/clear-session")
+async def clear_session():
+    import shutil
+    for d in [JEE_DIR, NEET_DIR]:
+        if os.path.exists(d):
+            for filename in os.listdir(d):
+                file_path = os.path.join(d, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.is_dir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f'Failed to delete {file_path}. Reason: {e}')
+    return {"status": "success"}
+
 @app.post("/upload")
 async def upload_files(exam_type: str = Form(...), files: List[UploadFile] = File(...)):
     target_dir = JEE_DIR if exam_type == "JEE" else NEET_DIR
@@ -102,6 +118,12 @@ async def process_omr(
         "processed_image": f"data:image/jpeg;base64,{img_base64}"
     }
 
+@app.get("/template/leaderboard")
+async def get_leaderboard_template():
+    path = os.path.join(ENGINE_DIR, "templates", "leaderboard_template.html")
+    with open(path, "r") as f:
+        return {"template": f.read()}
+
 @app.get("/template/{exam_type}")
 async def get_template(exam_type: str):
     if exam_type.upper() == "JEE":
@@ -131,6 +153,7 @@ async def generate_pdf(request: dict, background_tasks: BackgroundTasks):
         "--disable-gpu",
         f"--print-to-pdf={pdf_path}",
         "--no-margins",
+        "--no-pdf-header-footer",
         html_path
     ]
     
@@ -217,6 +240,7 @@ async def generate_results(request: dict):
 
 app.mount("/omr_jee", StaticFiles(directory=JEE_DIR), name="jee_images")
 app.mount("/omr_neet", StaticFiles(directory=NEET_DIR), name="neet_images")
+app.mount("/assets", StaticFiles(directory=os.path.join(ENGINE_DIR, "assets")), name="assets")
 app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
 
 if __name__ == "__main__":
