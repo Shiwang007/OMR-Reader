@@ -124,6 +124,12 @@ async def get_leaderboard_template():
     with open(path, "r") as f:
         return {"template": f.read()}
 
+@app.get("/template/comparison")
+async def get_comparison_template():
+    path = os.path.join(ENGINE_DIR, "templates", "comparison_report_template.html")
+    with open(path, "r") as f:
+        return {"template": f.read()}
+
 @app.get("/template/{exam_type}")
 async def get_template(exam_type: str):
     if exam_type.upper() == "JEE":

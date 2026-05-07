@@ -953,6 +953,122 @@ async function downloadScoreCards() {
   }
 }
 
+async function downloadComparisonPDF() {
+  if (!state.leaderboard || state.leaderboard.length === 0) {
+    setStatus("Calculate first");
+    return;
+  }
+
+  const topper = state.leaderboard[0];
+  setStatus("Fetching comparison template...");
+
+  try {
+    const res = await fetch(`/template/comparison`);
+    const { template } = await res.json();
+    const today = new Date().toLocaleDateString("en-IN");
+
+    // Extract style from template
+    const styleMatch = template.match(/<style>([\s\S]*?)<\/style>/i);
+    let styles = styleMatch ? styleMatch[1] : "";
+
+    // Combined document styles
+    styles += `
+        body { display: block !important; background: #f1f5f9 !important; margin: 0 !important; padding: 0 !important; }
+        .pdf-page-wrapper { 
+            display: flex; 
+            justify-content: center; 
+            width: 100%; 
+            page-break-after: always; 
+        }
+        .pdf-page-wrapper:last-child {
+            page-break-after: avoid !important;
+        }
+    `;
+
+    let allPagesContent = "";
+
+    // Iterate students except topper (rank > 1)
+    if (state.leaderboard.length <= 1) {
+      setStatus("No students to compare (only topper exists)");
+      return;
+    }
+
+    for (let i = 1; i < state.leaderboard.length; i++) {
+      const student = state.leaderboard[i];
+      let html = template;
+
+      // Fill basic info
+      html = html.replace(/{{STUDENT_NAME}}/g, student.name);
+      html = html.replace(/{{RANK}}/g, i + 1);
+      html = html.replace(/{{DATE}}/g, today);
+      html = html.replace(/{{EXAM_NAME}}/g, state.examName.toUpperCase());
+      html = html.replace(
+        /{{EXAM_TYPE}}/g,
+        state.examType === "JEE" ? "JEE MAINS" : "NEET AITS",
+      );
+      html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
+
+      // Scores
+      html = html.replace(/{{TOTAL_SCORE}}/g, student.totalScore);
+      html = html.replace(/{{TOPPER_SCORE}}/g, topper.totalScore);
+      html = html.replace(
+        /{{SCORE_GAP}}/g,
+        topper.totalScore - student.totalScore,
+      );
+
+      // Subject-wise rows
+      let rowsHtml = "";
+      for (const [subject, stats] of Object.entries(student.subjects)) {
+        const topperStats = topper.subjects[subject] || { score: 0 };
+        const gap = topperStats.score - stats.score;
+
+        rowsHtml += `<tr>
+            <td>${subject}</td>
+            <td class="score-val">${stats.score}</td>
+            <td class="topper-val">${topperStats.score}</td>
+            <td class="gap-val">${gap > 0 ? "-" + gap : gap}</td>
+        </tr>`;
+      }
+
+      html = html.replace(/{{ROWS}}/g, rowsHtml);
+
+      // Get body content
+      const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+      if (bodyMatch) {
+        allPagesContent += `<div class="pdf-page-wrapper">${bodyMatch[1]}</div>`;
+      }
+    }
+
+    const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+            <title>${state.examName} - Comparison Reports</title>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+            <style>${styles}</style>
+        </head><body>${allPagesContent}</body></html>`;
+
+    setStatus("Generating PDF on server...");
+    const pdfRes = await fetch("http://localhost:8000/generate-pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        html: finalHtml,
+        exam_name: state.examName + "_Comparisons",
+      }),
+    });
+
+    if (!pdfRes.ok) throw new Error("PDF conversion failed");
+
+    const blob = await pdfRes.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${state.examName}_Comparison_Reports.pdf`;
+    a.click();
+    setStatus("Comparison Reports downloaded successfully");
+  } catch (err) {
+    console.error(err);
+    setStatus("Failed to generate comparison reports: " + err.message);
+  }
+}
+
 function setStatus(text) {
   document.getElementById("status-text").innerText = text;
 }
