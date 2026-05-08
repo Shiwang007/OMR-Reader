@@ -129,6 +129,13 @@ function goToStep(step) {
   document.querySelector(`.step[data-step="${step}"]`).classList.add("active");
   updateNavigation();
   if (step === 3) renderAnswerGrid();
+  
+  // Hide export buttons if moving away from step 4
+  if (step < 4) {
+    document.getElementById("export-buttons").classList.add("hidden");
+    const calcBtn = document.querySelector("#step-4 .btn-primary.large");
+    if (calcBtn) calcBtn.innerHTML = '<i data-lucide="zap"></i> Calculate & Generate Reports';
+  }
 }
 
 function updateNavigation() {
@@ -142,13 +149,13 @@ function updateNavigation() {
 
 // Step 1
 async function selectExam(type) {
-  if (state.examType && state.examType !== type && state.files.length > 0) {
-    if (
-      !confirm(
-        "Switching exam types will clear your current batch and delete processed images from server. Continue?",
-      )
-    )
-      return;
+  if (state.examType === type) {
+    nextStep();
+    return;
+  }
+
+  if (state.examType && state.files.length > 0) {
+    if (!confirm("Switching exam types will clear your current batch and delete processed images from server. Continue?")) return;
   }
 
   // Call server to physically delete files
@@ -519,21 +526,23 @@ function clearAnswerKey() {
 async function calculateFinal() {
   const examName = document.getElementById("exam-name").value;
   if (!examName) {
-    setStatus("Please enter an exam name");
+    alert("Please enter an exam name at the top of the page.");
     return;
   }
   if (Object.keys(state.answerKey).length === 0) {
-    setStatus("Upload an answer key first (Step 3)");
+    alert("No Answer Key found. Please go back to Step 3 and upload the master key.");
     return;
   }
   if (state.files.length === 0) {
-    setStatus("No processed files available");
+    alert("No processed files found. Please go back to Step 2 and upload OMR sheets.");
     return;
   }
 
   const btn = document.querySelector("#step-4 .btn-primary");
-  btn.innerHTML = '<div class="spinner small"></div> Calculating...';
-  btn.disabled = true;
+  if (btn) {
+    btn.innerHTML = '<div class="spinner small"></div> Calculating...';
+    btn.disabled = true;
+  }
   setStatus("Calculating scores...");
 
   // Score every student on the frontend
@@ -779,177 +788,33 @@ async function downloadScoreCards() {
     setStatus("Calculate first");
     return;
   }
-  setStatus("Fetching report template...");
+  setStatus("Fetching scorecard template...");
 
   try {
     const res = await fetch(`/template/${state.examType}`);
     const { template } = await res.json();
     const today = new Date().toLocaleDateString("en-IN");
 
-    // Extract style from template
     const styleMatch = template.match(/<style>([\s\S]*?)<\/style>/i);
     let styles = styleMatch ? styleMatch[1] : "";
-
-    // CRITICAL FIX: The template uses "body { display: flex; justify-content: center; }"
-    // which makes all reports go side-by-side in a combined document.
-    // Force body to block and remove centering flex for the combined document
+    
+    // Minimal styles for multi-page export
     styles += `
-            body { display: block !important; background: #f1f5f9 !important; margin: 0 !important; padding: 0 !important; }
-            .pdf-page-wrapper { 
-                display: flex; 
-                justify-content: center; 
-                width: 100%; 
-                page-break-after: always; 
-            }
-            .pdf-page-wrapper:last-child {
-                page-break-after: avoid !important;
-            }
-            .report-paper {
-                margin: 0 !important;
-                box-shadow: none !important;
-            }
-            td {
-                padding: 4px 2px !important;
-            }
-            .q-num {
-                width: 35px !important;
-                padding-left: 5px !important;
-            }
-            .ans-cell {
-                width: 50px !important;
-                text-align: center !important;
-            }
-            th:nth-child(1) { text-align: left !important; padding-left: 5px !important; }
-            th:nth-child(2), th:nth-child(3) {
-                text-align: center !important;
-            }
-            table {
-                table-layout: fixed;
-                width: 100% !important;
-            }
-        `;
+        body { display: block !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+        .pdf-page-wrapper { width: 100%; page-break-after: always; }
+        .pdf-page-wrapper:last-child { page-break-after: avoid !important; }
+    `;
 
     let allPagesContent = "";
-
     for (const student of state.leaderboard) {
-      let html = template;
-
-      // Fill basic info
-      html = html.replace(/\{\{STUDENT_NAME\}\}/g, student.name);
-      html = html.replace(/\{\{DATE\}\}/g, today);
-      html = html.replace(/\{\{TOTAL_SCORE\}\}/g, student.totalScore);
-      html = html.replace(/\{\{ATTEMPTED\}\}/g, student.attempted);
-      html = html.replace(/\{\{RIGHT\}\}/g, student.totalCorrect);
-      html = html.replace(/\{\{WRONG\}\}/g, student.totalWrong);
-      html = html.replace(/\{\{UNATTEMPTED\}\}/g, student.totalSkipped);
-
-      // Fill subjects
-      for (const [subject, stats] of Object.entries(student.subjects)) {
-        const key = subject.toUpperCase().replace(/ /g, "_");
-        const keySection = state.answerKey[subject] || {};
-        const questions = student.data[subject] || {};
-
-        let rowsHtml = "";
-        const sortedNums = Object.keys(questions).sort(
-          (a, b) => parseInt(a) - parseInt(b),
-        );
-
-        for (const qNum of sortedNums) {
-          const answer = questions[qNum];
-          const correctAns = keySection[qNum] || "";
-          let statusClass = "skipped";
-
-          if (answer === "SKIPPED" || answer === "") {
-            statusClass = "skipped";
-          } else if (answer === "INVALID") {
-            statusClass = "invalid";
-          } else {
-            const studentAnsStr = String(answer).trim().toUpperCase();
-            let validAnswers = [];
-            if (Array.isArray(correctAns)) {
-              correctAns.forEach((item) => {
-                const parts = String(item)
-                  .split(",")
-                  .map((s) => s.trim().toUpperCase());
-                validAnswers = validAnswers.concat(parts);
-              });
-            } else {
-              validAnswers = String(correctAns)
-                .split(",")
-                .map((s) => s.trim().toUpperCase());
-            }
-
-            if (
-              validAnswers.includes("*") ||
-              validAnswers.includes(studentAnsStr)
-            ) {
-              statusClass = "correct";
-            } else {
-              statusClass = "wrong";
-            }
-          }
-
-          rowsHtml += `<tr>
-                        <td class="q-num">${qNum}</td>
-                        <td class="ans-cell">
-                            <span class="status-dot ${statusClass}">${answer === "SKIPPED" || answer === "" ? "—" : answer === "INVALID" ? "INV" : answer}</span>
-                        </td>
-                        <td class="ans-cell" style="font-weight: 600; color: #64748b;">${correctAns || "—"}</td>
-                    </tr>`;
-        }
-
-        html = html.replace(
-          new RegExp(`\\{\\{${key}_ROWS\\}\\}`, "g"),
-          rowsHtml,
-        );
-        html = html.replace(
-          new RegExp(`\\{\\{${key}_RIGHT\\}\\}`, "g"),
-          stats.correct,
-        );
-        html = html.replace(
-          new RegExp(`\\{\\{${key}_WRONG\\}\\}`, "g"),
-          stats.wrong,
-        );
-        html = html.replace(
-          new RegExp(`\\{\\{${key}_SCORE\\}\\}`, "g"),
-          stats.score,
-        );
-      }
-
-      // Embed logo
-      html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
-
-      // Get body content
-      const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-      if (bodyMatch) {
-        allPagesContent += `<div class="pdf-page-wrapper">${bodyMatch[1]}</div>`;
-      }
+      allPagesContent += `<div class="pdf-page-wrapper">${generateScorecardPage(student, template, today)}</div>`;
     }
 
-    const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-            <title>${state.examName} - Scorecards</title>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-            <style>${styles}</style>
-        </head><body>${allPagesContent}</body></html>`;
-
-    setStatus("Generating PDF on server...");
-    const pdfRes = await fetch("http://localhost:8000/generate-pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ html: finalHtml, exam_name: state.examName }),
-    });
-
-    if (!pdfRes.ok) throw new Error("PDF conversion failed");
-
-    const blob = await pdfRes.blob();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${state.examName}_Scorecards.pdf`;
-    a.click();
-    setStatus("Final PDF Scorecards downloaded successfully");
+    await generateAndDownloadPDF(allPagesContent, styles, state.examName + "_Scorecards");
+    setStatus("Scorecards downloaded successfully");
   } catch (err) {
     console.error(err);
-    setStatus("Failed to generate scorecards: " + err.message);
+    setStatus("Failed: " + err.message);
   }
 }
 
@@ -958,117 +823,292 @@ async function downloadComparisonPDF() {
     setStatus("Calculate first");
     return;
   }
-
-  const topper = state.leaderboard[0];
-  setStatus("Fetching comparison template...");
+  setStatus("Fetching analysis templates...");
 
   try {
-    const res = await fetch(`/template/comparison`);
-    const { template } = await res.json();
+    const compRes = await fetch(`/template/comparison`);
+    const topperRes = await fetch(`/template/topper`);
+    const { template: compTemplate } = await compRes.json();
+    const { template: topperTemplate } = await topperRes.json();
     const today = new Date().toLocaleDateString("en-IN");
+    const classStats = getClassStats();
+    const topper = state.leaderboard[0];
 
-    // Extract style from template
-    const styleMatch = template.match(/<style>([\s\S]*?)<\/style>/i);
+    const styleMatch = compTemplate.match(/<style>([\s\S]*?)<\/style>/i);
     let styles = styleMatch ? styleMatch[1] : "";
-
-    // Combined document styles
     styles += `
-        body { display: block !important; background: #f1f5f9 !important; margin: 0 !important; padding: 0 !important; }
-        .pdf-page-wrapper { 
-            display: flex; 
-            justify-content: center; 
-            width: 100%; 
-            page-break-after: always; 
-        }
-        .pdf-page-wrapper:last-child {
-            page-break-after: avoid !important;
-        }
+        body { display: block !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+        .pdf-page-wrapper { width: 100%; page-break-after: always; }
+        .pdf-page-wrapper:last-child { page-break-after: avoid !important; }
     `;
 
     let allPagesContent = "";
-
-    // Iterate students except topper (rank > 1)
-    if (state.leaderboard.length <= 1) {
-      setStatus("No students to compare (only topper exists)");
-      return;
-    }
-
-    for (let i = 1; i < state.leaderboard.length; i++) {
-      const student = state.leaderboard[i];
-      let html = template;
-
-      // Fill basic info
-      html = html.replace(/{{STUDENT_NAME}}/g, student.name);
-      html = html.replace(/{{RANK}}/g, i + 1);
-      html = html.replace(/{{DATE}}/g, today);
-      html = html.replace(/{{EXAM_NAME}}/g, state.examName.toUpperCase());
-      html = html.replace(
-        /{{EXAM_TYPE}}/g,
-        state.examType === "JEE" ? "JEE MAINS" : "NEET AITS",
-      );
-      html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
-
-      // Scores
-      html = html.replace(/{{TOTAL_SCORE}}/g, student.totalScore);
-      html = html.replace(/{{TOPPER_SCORE}}/g, topper.totalScore);
-      html = html.replace(
-        /{{SCORE_GAP}}/g,
-        topper.totalScore - student.totalScore,
-      );
-
-      // Subject-wise rows
-      let rowsHtml = "";
-      for (const [subject, stats] of Object.entries(student.subjects)) {
-        const topperStats = topper.subjects[subject] || { score: 0 };
-        const gap = topperStats.score - stats.score;
-
-        rowsHtml += `<tr>
-            <td>${subject}</td>
-            <td class="score-val">${stats.score}</td>
-            <td class="topper-val">${topperStats.score}</td>
-            <td class="gap-val">${gap > 0 ? "-" + gap : gap}</td>
-        </tr>`;
-      }
-
-      html = html.replace(/{{ROWS}}/g, rowsHtml);
-
-      // Get body content
-      const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-      if (bodyMatch) {
-        allPagesContent += `<div class="pdf-page-wrapper">${bodyMatch[1]}</div>`;
-      }
-    }
-
-    const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-            <title>${state.examName} - Comparison Reports</title>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-            <style>${styles}</style>
-        </head><body>${allPagesContent}</body></html>`;
-
-    setStatus("Generating PDF on server...");
-    const pdfRes = await fetch("http://localhost:8000/generate-pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        html: finalHtml,
-        exam_name: state.examName + "_Comparisons",
-      }),
+    state.leaderboard.forEach((student, i) => {
+      allPagesContent += `<div class="pdf-page-wrapper">${generateAnalysisPage(student, i + 1, topper, classStats, compTemplate, topperTemplate, today)}</div>`;
     });
 
-    if (!pdfRes.ok) throw new Error("PDF conversion failed");
-
-    const blob = await pdfRes.blob();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${state.examName}_Comparison_Reports.pdf`;
-    a.click();
-    setStatus("Comparison Reports downloaded successfully");
+    await generateAndDownloadPDF(allPagesContent, styles, state.examName + "_Analysis");
+    setStatus("Analysis reports downloaded successfully");
   } catch (err) {
     console.error(err);
-    setStatus("Failed to generate comparison reports: " + err.message);
+    setStatus("Failed: " + err.message);
   }
+}
+
+async function downloadFullReports() {
+  if (!state.leaderboard || state.leaderboard.length === 0) {
+    setStatus("Calculate first");
+    return;
+  }
+  setStatus("Fetching all templates...");
+
+  try {
+    const [scoreRes, compRes, topperRes] = await Promise.all([
+      fetch(`/template/${state.examType}`),
+      fetch(`/template/comparison`),
+      fetch(`/template/topper`)
+    ]);
+    
+    const { template: scoreTemplate } = await scoreRes.json();
+    const { template: compTemplate } = await compRes.json();
+    const { template: topperTemplate } = await topperRes.json();
+    
+    const today = new Date().toLocaleDateString("en-IN");
+    const classStats = getClassStats();
+    const topper = state.leaderboard[0];
+
+    // Combine styles but keep them isolated
+    const scoreStyleMatch = scoreTemplate.match(/<style>([\s\S]*?)<\/style>/i);
+    const compStyleMatch = compTemplate.match(/<style>([\s\S]*?)<\/style>/i);
+    let styles = (scoreStyleMatch ? scoreStyleMatch[1] : "") + (compStyleMatch ? compStyleMatch[1] : "");
+    styles += `
+        body { display: block !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+        .pdf-page-wrapper { 
+            width: 100%; 
+            page-break-after: always; 
+            overflow: visible;
+        }
+        .pdf-page-wrapper:last-child { page-break-after: avoid !important; }
+    `;
+
+    let allPagesContent = "";
+    for (let i = 0; i < state.leaderboard.length; i++) {
+      const student = state.leaderboard[i];
+      // Page 1: Scorecard
+      allPagesContent += `<div class="pdf-page-wrapper">${generateScorecardPage(student, scoreTemplate, today)}</div>`;
+      // Page 2: Analysis
+      allPagesContent += `<div class="pdf-page-wrapper">${generateAnalysisPage(student, i + 1, topper, classStats, compTemplate, topperTemplate, today)}</div>`;
+    }
+
+    await generateAndDownloadPDF(allPagesContent, styles, state.examName + "_Full_Reports");
+    setStatus("Full combined reports downloaded successfully");
+  } catch (err) {
+    console.error(err);
+    setStatus("Failed: " + err.message);
+  }
+}
+
+function getClassStats() {
+  const stats = {};
+  if (!state.leaderboard || state.leaderboard.length === 0) return stats;
+
+  const firstStudent = state.leaderboard[0];
+  for (const subject of Object.keys(firstStudent.subjects)) {
+    const scores = state.leaderboard.map(s => s.subjects[subject]?.score || 0);
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+    stats[subject] = { avg: Math.round(avg * 10) / 10 };
+  }
+  return stats;
+}
+
+function generateScorecardPage(student, template, today) {
+  let html = template;
+  html = html.replace(/\{\{STUDENT_NAME\}\}/g, student.name);
+  html = html.replace(/\{\{DATE\}\}/g, today);
+  html = html.replace(/\{\{TOTAL_SCORE\}\}/g, student.totalScore);
+  html = html.replace(/\{\{ATTEMPTED\}\}/g, student.attempted);
+  html = html.replace(/\{\{RIGHT\}\}/g, student.totalCorrect);
+  html = html.replace(/\{\{WRONG\}\}/g, student.totalWrong);
+  html = html.replace(/\{\{UNATTEMPTED\}\}/g, student.totalSkipped);
+
+  for (const [subject, stats] of Object.entries(student.subjects)) {
+    const key = subject.toUpperCase().replace(/ /g, "_");
+    const keySection = state.answerKey[subject] || {};
+    const questions = student.data[subject] || {};
+
+    let rowsHtml = "";
+    const sortedNums = Object.keys(questions).sort((a, b) => parseInt(a) - parseInt(b));
+
+    for (const qNum of sortedNums) {
+      const answer = questions[qNum];
+      const correctAns = keySection[qNum] || "";
+      let statusClass = "skipped";
+
+      if (answer === "SKIPPED" || answer === "") statusClass = "skipped";
+      else if (answer === "INVALID") statusClass = "invalid";
+      else {
+        const studentAnsStr = String(answer).trim().toUpperCase();
+        let validAnswers = [];
+        if (Array.isArray(correctAns)) {
+          correctAns.forEach(item => {
+            const parts = String(item).split(",").map(s => s.trim().toUpperCase());
+            validAnswers = validAnswers.concat(parts);
+          });
+        } else {
+          validAnswers = String(correctAns).split(",").map(s => s.trim().toUpperCase());
+        }
+
+        if (validAnswers.includes("*") || validAnswers.includes(studentAnsStr)) statusClass = "correct";
+        else statusClass = "wrong";
+      }
+
+      rowsHtml += `<tr>
+                    <td class="q-num">${qNum}</td>
+                    <td class="ans-cell">
+                        <span class="status-dot ${statusClass}">${answer === "SKIPPED" || answer === "" ? "—" : answer === "INVALID" ? "INV" : answer}</span>
+                    </td>
+                    <td class="ans-cell" style="font-weight: 600; color: #64748b;">${correctAns || "—"}</td>
+                </tr>`;
+    }
+
+    html = html.replace(new RegExp(`\\{\\{${key}_ROWS\\}\\}`, "g"), rowsHtml);
+    html = html.replace(new RegExp(`\\{\\{${key}_RIGHT\\}\\}`, "g"), stats.correct);
+    html = html.replace(new RegExp(`\\{\\{${key}_WRONG\\}\\}`, "g"), stats.wrong);
+    html = html.replace(new RegExp(`\\{\\{${key}_SCORE\\}\\}`, "g"), stats.score);
+  }
+
+  html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  const content = bodyMatch ? bodyMatch[1] : "";
+  return `<div class="theme-scorecard">${content}</div>`;
+}
+
+function generateAnalysisPage(student, rank, topper, classStats, compTemplate, topperTemplate, today) {
+  const isTopper = rank === 1;
+  let html = isTopper ? topperTemplate : compTemplate;
+
+  html = html.replace(/{{STUDENT_NAME}}/g, student.name);
+  html = html.replace(/{{DATE}}/g, today);
+  html = html.replace(/{{EXAM_NAME}}/g, state.examName.toUpperCase());
+  html = html.replace(/{{EXAM_TYPE}}/g, state.examType === "JEE" ? "JEE MAINS" : "NEET AITS");
+  html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
+  html = html.replace(/{{TOTAL_SCORE}}/g, student.totalScore);
+
+  const totalQuestions = Object.values(state.answerKey).reduce((acc, subj) => acc + Object.keys(subj).length, 0);
+  const totalAccuracy = student.attempted > 0 ? Math.round((student.totalCorrect / student.attempted) * 100) : 0;
+  const totalAttemptRate = Math.round((student.attempted / totalQuestions) * 100);
+
+  let weakestSubj = "N/A";
+  let minAcc = 101;
+  let marksLostWeakest = 0;
+
+  for (const [subj, stats] of Object.entries(student.subjects)) {
+    const attempted = stats.correct + stats.wrong;
+    const acc = attempted > 0 ? (stats.correct / attempted) * 100 : 0;
+    if (acc < minAcc && attempted > 0) {
+      minAcc = acc;
+      weakestSubj = subj;
+      marksLostWeakest = stats.wrong;
+    }
+  }
+
+  if (isTopper) {
+    html = html.replace(/{{ACCURACY}}/g, totalAccuracy);
+    html = html.replace(/{{MARKS_LOST}}/g, student.totalWrong);
+    html = html.replace(/{{POTENTIAL_SCORE}}/g, student.totalScore + student.totalWrong);
+    html = html.replace(/{{MARKS_EARNED}}/g, student.totalCorrect * 4);
+    html = html.replace(/{{UNATTEMPTED_POTENTIAL}}/g, student.totalSkipped * 4);
+    html = html.split('{{WEAKEST_SUBJECT}}').join(weakestSubj);
+    html = html.split('{{WEAKEST_ACCURACY}}').join(Math.round(minAcc));
+
+    let rowsHtml = "";
+    for (const [subj, stats] of Object.entries(student.subjects)) {
+      const attempted = stats.correct + stats.wrong;
+      const acc = attempted > 0 ? Math.round((stats.correct / attempted) * 100) : 0;
+      const qInSubj = Object.keys(state.answerKey[subj] || {}).length;
+      const attRate = qInSubj > 0 ? Math.round((attempted / qInSubj) * 100) : 0;
+      
+      rowsHtml += `<tr>
+                <td>${subj}</td>
+                <td><b>${stats.score}</b></td>
+                <td>${acc}%</td>
+                <td>${attRate}%</td>
+                <td style="color: var(--danger)">${stats.wrong}</td>
+                <td style="color: var(--warning)">${stats.skipped}</td>
+            </tr>`;
+    }
+    html = html.replace(/{{ROWS}}/g, rowsHtml);
+  } else {
+    html = html.replace(/{{RANK}}/g, rank);
+    html = html.replace(/{{CLASS_AVG}}/g, Math.round(state.leaderboard.reduce((a, b) => a + b.totalScore, 0) / state.leaderboard.length));
+    html = html.replace(/{{TOPPER_SCORE}}/g, topper.totalScore);
+    html = html.replace(/{{SCORE_GAP}}/g, topper.totalScore - student.totalScore);
+    html = html.replace(/{{ACCURACY}}/g, totalAccuracy);
+    html = html.replace(/{{ATTEMPT_RATE}}/g, totalAttemptRate);
+    html = html.replace(/{{POTENTIAL_SCORE}}/g, student.totalScore + student.totalWrong);
+    html = html.replace(/{{MARKS_EARNED}}/g, student.totalCorrect * 4);
+    html = html.replace(/{{MARKS_LOST}}/g, student.totalWrong);
+    html = html.split('{{WEAKEST_SUBJECT}}').join(weakestSubj);
+    html = html.split('{{WEAKEST_SCORE}}').join(student.subjects[weakestSubj]?.score || 0);
+    html = html.split('{{TOPPER_WEAKEST_SCORE}}').join(topper.subjects[weakestSubj]?.score || 0);
+    html = html.split('{{MARKS_LOST_WEAKEST}}').join(marksLostWeakest);
+
+    let rowsHtml = "";
+    for (const [subj, stats] of Object.entries(student.subjects)) {
+      const topStats = topper.subjects[subj] || { score: 0 };
+      const avg = classStats[subj]?.avg || 0;
+      const attempted = stats.correct + stats.wrong;
+      const acc = attempted > 0 ? Math.round((stats.correct / attempted) * 100) : 0;
+      const qInSubj = Object.keys(state.answerKey[subj] || {}).length;
+      const attRate = qInSubj > 0 ? Math.round((attempted / qInSubj) * 100) : 0;
+      
+      let statusTag = '<span class="tag tag-avg">Average</span>';
+      if (stats.score > avg + 10) statusTag = '<span class="tag tag-strong">Strong</span>';
+      else if (stats.score < avg - 10) statusTag = '<span class="tag tag-weak">Weak</span>';
+
+      rowsHtml += `<tr>
+                <td>${subj}</td>
+                <td><b>${stats.score}</b></td>
+                <td style="color: var(--success)">${topStats.score}</td>
+                <td>${avg}</td>
+                <td>${acc}%</td>
+                <td>${attRate}%</td>
+                <td>${statusTag}</td>
+            </tr>`;
+    }
+    html = html.replace(/{{ROWS}}/g, rowsHtml);
+  }
+
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  const content = bodyMatch ? bodyMatch[1] : "";
+  return `<div class="theme-analysis">${content}</div>`;
+}
+
+async function generateAndDownloadPDF(htmlContent, styles, filename) {
+  const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+            <title>${filename}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+            <style>
+                @page { size: A4; margin: 0; }
+                ${styles}
+            </style>
+        </head><body>${htmlContent}</body></html>`;
+
+  const pdfRes = await fetch("http://localhost:8000/generate-pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ html: finalHtml, exam_name: filename }),
+  });
+
+  if (!pdfRes.ok) throw new Error("PDF conversion failed");
+  const blob = await pdfRes.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${filename}.pdf`;
+  a.click();
 }
 
 function setStatus(text) {
   document.getElementById("status-text").innerText = text;
 }
+

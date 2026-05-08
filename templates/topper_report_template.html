@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Performance Analysis | {{STUDENT_NAME}}</title>
+    <title>Improvement Analysis | {{STUDENT_NAME}}</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -69,24 +69,24 @@
 
         .theme-analysis .student-header {
             margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
+            text-align: center;
         }
 
         .theme-analysis .student-header h2 {
-            margin: 0;
+            margin: 5px 0;
             font-size: 24px;
             font-weight: 800;
         }
 
         .theme-analysis .rank-badge {
-            background: var(--primary);
+            display: inline-block;
+            background: var(--success);
             color: white;
-            padding: 4px 12px;
+            padding: 3px 12px;
             border-radius: 15px;
             font-size: 12px;
             font-weight: 700;
+            text-transform: uppercase;
         }
 
         .theme-analysis .section-title {
@@ -152,33 +152,33 @@
             font-size: 13px;
         }
 
-        .theme-analysis .tag {
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
+        .theme-analysis .analysis-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
         }
 
-        .theme-analysis .tag-top { background: #dcfce7; color: #166534; }
-        .theme-analysis .tag-avg { background: #fef9c3; color: #854d0e; }
-        .theme-analysis .tag-below { background: #fee2e2; color: #991b1b; }
-
-        .theme-analysis .improvement-tip {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            padding: 15px;
+        .theme-analysis .analysis-box {
+            background: white;
+            border: 1px solid var(--gray-200);
             border-radius: 10px;
-            margin-top: 20px;
+            padding: 15px;
         }
 
-        .theme-analysis .improvement-tip h4 {
-            margin: 0 0 8px 0;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        .theme-analysis .analysis-box h4 {
+            margin: 0 0 10px 0;
+            color: var(--gray-800);
+            font-size: 14px;
         }
+
+        .theme-analysis .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .theme-analysis .metric-row .val { font-weight: 600; }
 
         .theme-analysis .footer {
             margin-top: 30px;
@@ -202,47 +202,46 @@
                 <img src="{{LOGO_B64}}" alt="Logo">
             </div>
             <div class="exam-info">
-                <h1>{{EXAM_NAME}} Performance Analysis</h1>
+                <h1>{{EXAM_NAME}}</h1>
                 <p>{{EXAM_TYPE}} &bull; {{DATE}}</p>
             </div>
         </div>
 
         <div class="student-header">
+            <div class="rank-badge">SESSION TOPPER</div>
             <h2>{{STUDENT_NAME}}</h2>
-            <div class="rank-badge">RANK #{{RANK}}</div>
         </div>
 
-        <div class="section-title">Quick Stats</div>
+        <div class="section-title">Performance Summary</div>
         <div class="summary-grid">
-            <div class="summary-card">
-                <div class="label">Total Score</div>
-                <div class="value" style="color: var(--primary)">{{TOTAL_SCORE}}</div>
+            <div class="summary-card card-success">
+                <div class="label">Actual Score</div>
+                <div class="value">{{TOTAL_SCORE}}</div>
             </div>
             <div class="summary-card">
                 <div class="label">Accuracy</div>
                 <div class="value">{{ACCURACY}}%</div>
             </div>
             <div class="summary-card card-warning">
-                <div class="label">Attempt Rate</div>
-                <div class="value">{{ATTEMPT_RATE}}%</div>
-            </div>
-            <div class="summary-card card-danger">
                 <div class="label">Marks Lost</div>
                 <div class="value">-{{MARKS_LOST}}</div>
             </div>
+            <div class="summary-card">
+                <div class="label">Potential</div>
+                <div class="value">{{POTENTIAL_SCORE}}</div>
+            </div>
         </div>
 
-        <div class="section-title">Comparative Analysis</div>
+        <div class="section-title">Subject-wise Efficiency</div>
         <table>
             <thead>
                 <tr>
                     <th>Subject</th>
-                    <th>Your Score</th>
-                    <th>Topper</th>
-                    <th>Average</th>
+                    <th>Score</th>
                     <th>Accuracy</th>
                     <th>Attempt %</th>
-                    <th>Status</th>
+                    <th>Wrong</th>
+                    <th>Skipped</th>
                 </tr>
             </thead>
             <tbody>
@@ -250,17 +249,41 @@
             </tbody>
         </table>
 
-        <div class="improvement-tip">
-            <h4><i data-lucide="lightbulb"></i> Personalized Insight</h4>
-            <p style="font-size: 13px; margin: 0;">
-                You lost <b>{{MARKS_LOST}} marks</b> due to incorrect answers. 
-                Focus on <b>{{WEAKEST_SUBJECT}}</b> where your score was {{WEAKEST_SCORE}} 
-                compared to the topper's {{TOPPER_WEAKEST_SCORE}}.
-            </p>
+        <div class="section-title">Improvement Areas</div>
+        <div class="analysis-container">
+            <div class="analysis-box">
+                <h4>Error Analysis</h4>
+                <div class="metric-row">
+                    <span>Negative Marking Cost</span>
+                    <span class="val" style="color: var(--danger)">-{{MARKS_LOST}} Marks</span>
+                </div>
+                <div class="metric-row">
+                    <span>Unattempted Potential</span>
+                    <span class="val" style="color: var(--warning)">+{{UNATTEMPTED_POTENTIAL}} Marks</span>
+                </div>
+                <p style="font-size: 11px; color: #64748b; margin-top: 10px;">
+                    Focus on reducing negative marks in <b>{{WEAKEST_SUBJECT}}</b> where your accuracy was {{WEAKEST_ACCURACY}}%.
+                </p>
+            </div>
+            <div class="analysis-box">
+                <h4>Score Composition</h4>
+                <div class="metric-row">
+                    <span>Correct Marks (+)</span>
+                    <span class="val">{{MARKS_EARNED}}</span>
+                </div>
+                <div class="metric-row">
+                    <span>Wrong Marks (-)</span>
+                    <span class="val" style="color: var(--danger)">{{MARKS_LOST}}</span>
+                </div>
+                <div class="metric-row" style="border-top: 1px solid #eee; padding-top: 8px; margin-top: 8px;">
+                    <span>Final Score</span>
+                    <span class="val" style="color: var(--primary)">{{TOTAL_SCORE}}</span>
+                </div>
+            </div>
         </div>
 
         <div class="footer">
-            Generated by Medjeex OMR Engine &bull; Confidential Performance Report
+            Generated by Medjeex OMR Engine &bull; Session Rank #1 Performance Analysis
         </div>
     </div>
 </body>

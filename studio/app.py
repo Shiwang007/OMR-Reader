@@ -130,6 +130,12 @@ async def get_comparison_template():
     with open(path, "r") as f:
         return {"template": f.read()}
 
+@app.get("/template/topper")
+async def get_topper_template():
+    path = os.path.join(ENGINE_DIR, "templates", "topper_report_template.html")
+    with open(path, "r") as f:
+        return {"template": f.read()}
+
 @app.get("/template/{exam_type}")
 async def get_template(exam_type: str):
     if exam_type.upper() == "JEE":

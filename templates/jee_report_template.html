@@ -19,6 +19,7 @@
         * {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            box-sizing: border-box;
         }
 
         @page {
@@ -26,29 +27,28 @@
             margin: 0;
         }
 
-        body {
+        .theme-scorecard {
             font-family: 'Inter', sans-serif;
-            background-color: #f1f5f9;
+            background-color: #fff;
             margin: 0;
             padding: 0;
             color: var(--slate-800);
             display: flex;
             justify-content: center;
+            width: 100%;
         }
 
-        .report-paper {
+        .theme-scorecard .report-paper {
             background: white;
             width: 210mm;
-            min-height: 297mm;
+            min-height: 296mm;
             padding: 10mm;
-            box-sizing: border-box;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
             position: relative;
             z-index: 1;
-            overflow: hidden;
+            overflow: visible;
         }
 
-        .watermark {
+        .theme-scorecard .watermark {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -59,61 +59,61 @@
             width: 600px;
         }
 
-        .header {
+        .theme-scorecard .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 5px;
         }
 
-        .student-info h1 {
+        .theme-scorecard .student-info h1 {
             margin: 0;
             font-size: 20px;
             color: var(--primary);
         }
 
-        .stats-summary {
+        .theme-scorecard .stats-summary {
             display: flex;
             gap: 15px;
         }
 
-        .stat-item {
+        .theme-scorecard .stat-item {
             text-align: center;
         }
 
-        .stat-val {
+        .theme-scorecard .stat-val {
             font-size: 16px;
             font-weight: 700;
             display: block;
         }
 
-        .stat-lbl {
+        .theme-scorecard .stat-lbl {
             font-size: 10px;
             text-transform: uppercase;
             color: #64748b;
             font-weight: 600;
         }
 
-        .divider {
+        .theme-scorecard .divider {
             height: 1px;
             background: var(--slate-200);
             margin: 5px 0;
         }
 
-        .subject-grid {
+        .theme-scorecard .subject-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 4mm;
         }
 
-        .subject-col {
+        .theme-scorecard .subject-col {
             border: 1px solid var(--slate-200);
             border-radius: 6px;
             display: flex;
             flex-direction: column;
         }
 
-        .subject-title {
+        .theme-scorecard .subject-title {
             background: var(--slate-50);
             padding: 4px;
             text-align: center;
@@ -123,41 +123,41 @@
             color: var(--primary);
         }
 
-        .table-flex {
+        .theme-scorecard .table-flex {
             padding: 5px;
         }
 
-        table {
+        .theme-scorecard table {
             width: 100%;
             border-collapse: collapse;
             font-size: 11px;
         }
 
-        th {
+        .theme-scorecard th {
             text-align: left;
             color: #64748b;
             padding: 4px;
             border-bottom: 1px solid var(--slate-200);
         }
 
-        td {
+        .theme-scorecard td {
             padding: 1.5px 2px;
             border-bottom: 1px dotted #e2e8f0;
         }
 
-        .q-num {
+        .theme-scorecard .q-num {
             font-weight: 600;
             color: #94a3b8;
             width: 25px;
         }
 
-        .ans-cell {
+        .theme-scorecard .ans-cell {
             text-align: center;
             font-weight: 700;
             width: 30px;
         }
 
-        .status-dot {
+        .theme-scorecard .status-dot {
             display: inline-block;
             width: 17px;
             height: 17px;
@@ -168,12 +168,12 @@
             font-size: 9px;
         }
 
-        .correct { background-color: var(--success); }
-        .wrong { background-color: var(--danger); }
-        .skipped { background-color: var(--slate-200); color: #64748b; }
-        .invalid { background-color: #000; }
+        .theme-scorecard .correct { background-color: var(--success); }
+        .theme-scorecard .wrong { background-color: var(--danger); }
+        .theme-scorecard .skipped { background-color: var(--slate-200); color: #64748b; }
+        .theme-scorecard .invalid { background-color: #000; }
 
-        .subject-footer {
+        .theme-scorecard .subject-footer {
             background: var(--slate-50);
             padding: 4px 1px;
             border-top: 1px solid var(--slate-200);
@@ -183,17 +183,13 @@
             color: var(--slate-800);
         }
 
-        .subject-footer span {
-            color: var(--primary);
-        }
-
         @media print {
-            body { background: white; padding: 0; }
-            .report-paper { box-shadow: none; border: none; width: 100%; }
+            .theme-scorecard { background: white; padding: 0; }
+            .theme-scorecard .report-paper { box-shadow: none; border: none; width: 100%; }
         }
     </style>
 </head>
-<body>
+<body class="theme-scorecard">
     <div class="report-paper">
         <img src="{{LOGO_B64}}" class="watermark" alt="Medjeex Logo">
         <div class="header">

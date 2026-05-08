@@ -19,6 +19,7 @@
         * {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            box-sizing: border-box;
         }
 
         @page {
@@ -26,29 +27,28 @@
             margin: 0;
         }
 
-        body {
+        .theme-scorecard {
             font-family: 'Inter', sans-serif;
-            background-color: #f1f5f9;
+            background-color: #fff;
             margin: 0;
             padding: 0;
             color: var(--slate-800);
             display: flex;
             justify-content: center;
+            width: 100%;
         }
 
-        .report-paper {
+        .theme-scorecard .report-paper {
             background: white;
             width: 210mm;
-            height: 297mm;
-            padding: 4mm 6mm;
-            box-sizing: border-box;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            min-height: 296mm;
+            padding: 2mm 5mm;
             position: relative;
             z-index: 1;
-            overflow: hidden;
+            overflow: visible;
         }
 
-        .watermark {
+        .theme-scorecard .watermark {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -59,61 +59,61 @@
             width: 600px;
         }
 
-        .header {
+        .theme-scorecard .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 2px;
         }
 
-        .student-info h1 {
+        .theme-scorecard .student-info h1 {
             margin: 0;
             font-size: 16px;
             color: var(--primary);
         }
 
-        .stats-summary {
+        .theme-scorecard .stats-summary {
             display: flex;
             gap: 15px;
         }
 
-        .stat-item {
+        .theme-scorecard .stat-item {
             text-align: center;
         }
 
-        .stat-val {
+        .theme-scorecard .stat-val {
             font-size: 14px;
             font-weight: 700;
             display: block;
         }
 
-        .stat-lbl {
+        .theme-scorecard .stat-lbl {
             font-size: 10px;
             text-transform: uppercase;
             color: #64748b;
             font-weight: 600;
         }
 
-        .divider {
+        .theme-scorecard .divider {
             height: 1px;
             background: var(--slate-200);
-            margin: 5px 0;
+            margin: 4px 0;
         }
 
-        .subject-grid {
+        .theme-scorecard .subject-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 2mm;
         }
 
-        .subject-col {
+        .theme-scorecard .subject-col {
             border: 1px solid var(--slate-200);
             border-radius: 6px;
             display: flex;
             flex-direction: column;
         }
 
-        .subject-title {
+        .theme-scorecard .subject-title {
             background: var(--slate-50);
             padding: 2px;
             text-align: center;
@@ -123,46 +123,41 @@
             color: var(--primary);
         }
 
-        .table-flex {
-            padding: 5px;
+        .theme-scorecard .table-flex {
+            padding: 4px;
         }
 
-        .table-container {
-            flex-grow: 1;
-            padding: 5px;
-        }
-
-        table {
+        .theme-scorecard table {
             width: 100%;
             border-collapse: collapse;
             font-size: 8.5px;
         }
 
-        th {
+        .theme-scorecard th {
             text-align: left;
             color: #64748b;
             padding: 2px;
             border-bottom: 1px solid var(--slate-200);
         }
 
-        td {
-            padding: 0.1px 1.5px;
+        .theme-scorecard td {
+            padding: 0px 1.5px;
             border-bottom: 1px dotted #f1f5f9;
         }
 
-        .q-num {
+        .theme-scorecard .q-num {
             font-weight: 600;
             color: #94a3b8;
             width: 25px;
         }
 
-        .ans-cell {
+        .theme-scorecard .ans-cell {
             text-align: center;
             font-weight: 700;
             width: 30px;
         }
 
-        .status-dot {
+        .theme-scorecard .status-dot {
             display: inline-block;
             width: 12px;
             height: 12px;
@@ -173,14 +168,14 @@
             font-size: 7px;
         }
 
-        .correct { background-color: var(--success); }
-        .wrong { background-color: var(--danger); }
-        .skipped { background-color: var(--slate-200); color: #64748b; }
-        .invalid { background-color: #000; }
+        .theme-scorecard .correct { background-color: var(--success); }
+        .theme-scorecard .wrong { background-color: var(--danger); }
+        .theme-scorecard .skipped { background-color: var(--slate-200); color: #64748b; }
+        .theme-scorecard .invalid { background-color: #000; }
 
-        .subject-footer {
+        .theme-scorecard .subject-footer {
             background: var(--slate-50);
-            padding: 3px 1px;
+            padding: 2px 1px;
             border-top: 1px solid var(--slate-200);
             font-size: 10px;
             text-align: center;
@@ -188,24 +183,19 @@
             color: var(--slate-800);
         }
 
-        .subject-footer span {
-            color: var(--primary);
-        }
-
-
         @media print {
-            body { background: white; padding: 0; }
-            .report-paper { box-shadow: none; border: none; width: 100%; }
+            .theme-scorecard { background: white; padding: 0; }
+            .theme-scorecard .report-paper { box-shadow: none; border: none; width: 100%; }
         }
     </style>
 </head>
-<body>
+<body class="theme-scorecard">
     <div class="report-paper">
         <img src="{{LOGO_B64}}" class="watermark" alt="Medjeex Logo">
         <div class="header">
             <div class="student-info">
                 <h1>{{STUDENT_NAME}}</h1>
-                <p style="margin: 5px 0 0 0; font-size: 12px; color: #64748b;">NEET AITS &bull; {{DATE}}</p>
+                <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b;">NEET AITS &bull; {{DATE}}</p>
             </div>
             <div class="stats-summary">
                 <div class="stat-item">
@@ -244,7 +234,7 @@
                     </table>
                 </div>
                 <div class="subject-footer">
-                    C : {{PHYSICS_RIGHT}} &nbsp;&nbsp; W : {{PHYSICS_WRONG}} &nbsp;&nbsp; MARKS : {{PHYSICS_SCORE}}
+                    C:{{PHYSICS_RIGHT}} W:{{PHYSICS_WRONG}} S:{{PHYSICS_SCORE}}
                 </div>
             </div>
 
@@ -258,7 +248,7 @@
                     </table>
                 </div>
                 <div class="subject-footer">
-                    C : {{CHEMISTRY_RIGHT}} &nbsp;&nbsp; W : {{CHEMISTRY_WRONG}} &nbsp;&nbsp; MARKS : {{CHEMISTRY_SCORE}}
+                    C:{{CHEMISTRY_RIGHT}} W:{{CHEMISTRY_WRONG}} S:{{CHEMISTRY_SCORE}}
                 </div>
             </div>
 
@@ -272,7 +262,7 @@
                     </table>
                 </div>
                 <div class="subject-footer">
-                    C : {{BIOLOGY_I_RIGHT}} &nbsp;&nbsp; W : {{BIOLOGY_I_WRONG}} &nbsp;&nbsp; MARKS : {{BIOLOGY_I_SCORE}}
+                    C:{{BIOLOGY_I_RIGHT}} W:{{BIOLOGY_I_WRONG}} S:{{BIOLOGY_I_SCORE}}
                 </div>
             </div>
 
@@ -286,14 +276,10 @@
                     </table>
                 </div>
                 <div class="subject-footer">
-                    C : {{BIOLOGY_II_RIGHT}} &nbsp;&nbsp; W : {{BIOLOGY_II_WRONG}} &nbsp;&nbsp; MARKS : {{BIOLOGY_II_SCORE}}
+                    C:{{BIOLOGY_II_RIGHT}} W:{{BIOLOGY_II_WRONG}} S:{{BIOLOGY_II_SCORE}}
                 </div>
             </div>
         </div>
-
-        <p style="display:none;">
-            Generated by Medjeex OMR Engine &bull; Marking: +4 / -1
-        </p>
     </div>
 </body>
 </html>
