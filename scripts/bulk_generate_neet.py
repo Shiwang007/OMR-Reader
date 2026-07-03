@@ -6,7 +6,7 @@ import base64
 from datetime import datetime
 
 # Paths
-BASE_DIR = r"f:\Medjeex\Medjeex-OMR-Engine"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data", "neet")
 ANSWER_KEY_PATH = os.path.join(BASE_DIR, "answer", "11_neet.json")
 REPORT_TEMPLATE_PATH = os.path.join(BASE_DIR, "templates", "omr_report_template.html")
@@ -146,6 +146,7 @@ def generate_reports():
         html = report_template
         html = html.replace("{{LOGO_B64}}", LOGO_B64)
         html = html.replace("{{STUDENT_NAME}}", student_name.upper())
+        html = html.replace("{{EXAM_NAME}}", "AKAAR NEET")
         html = html.replace("{{DATE}}", today)
         html = html.replace("{{TOTAL_SCORE}}", str(total_score))
         html = html.replace("{{ATTEMPTED}}", str(total_correct + total_wrong))

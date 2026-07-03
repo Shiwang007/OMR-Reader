@@ -130,9 +130,11 @@ function goToStep(step) {
   updateNavigation();
   if (step === 3) renderAnswerGrid();
   
-  // Hide export buttons if moving away from step 4
+  // Hide export buttons and leaderboard container if moving away from step 4
   if (step < 4) {
     document.getElementById("export-buttons").classList.add("hidden");
+    const leaderboardDetails = document.getElementById("leaderboard-details-container");
+    if (leaderboardDetails) leaderboardDetails.classList.add("hidden");
     const calcBtn = document.querySelector("#step-4 .btn-primary.large");
     if (calcBtn) calcBtn.innerHTML = '<i data-lucide="zap"></i> Calculate & Generate Reports';
   }
@@ -144,6 +146,7 @@ function updateNavigation() {
   btnBack.disabled = state.currentStep === 1;
   if (state.currentStep === 1) btnNext.disabled = !state.examType;
   else if (state.currentStep === 2) btnNext.disabled = state.files.length === 0;
+  else if (state.currentStep === 3) btnNext.disabled = Object.keys(state.answerKey).length === 0;
   else btnNext.disabled = false;
 }
 
@@ -205,6 +208,9 @@ async function selectExam(type) {
   const exportBtns = document.getElementById("export-buttons");
   if (exportBtns) exportBtns.classList.add("hidden");
 
+  const leaderboardDetails = document.getElementById("leaderboard-details-container");
+  if (leaderboardDetails) leaderboardDetails.classList.add("hidden");
+
   // Reset stats
   ["stat-total", "stat-avg", "stat-top"].forEach((id) => {
     const el = document.getElementById(id);
@@ -226,45 +232,109 @@ async function selectExam(type) {
 }
 
 // Step 2: Upload & Process
+function readJsonFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+        resolve({ file, parsed });
+      } catch (err) {
+        reject(new Error(`Failed to parse ${file.name}: ${err.message}`));
+      }
+    };
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.readAsText(file);
+  });
+}
+
 async function handleFiles(e) {
-  const files = e.target.files;
+  const files = Array.from(e.target.files);
   if (files.length === 0) return;
 
-  const formData = new FormData();
-  formData.append("exam_type", state.examType);
-  for (let file of files) formData.append("files", file);
+  const jsonFiles = files.filter(f => f.name.endsWith(".json"));
+  const imageFiles = files.filter(f => !f.name.endsWith(".json"));
 
-  setStatus("Uploading and processing batch...");
-  document.getElementById("loader").classList.remove("hidden");
+  const jsonResults = [];
+  if (jsonFiles.length > 0) {
+    try {
+      const readPromises = jsonFiles.map(readJsonFile);
+      const results = await Promise.all(readPromises);
+      results.forEach(({ file, parsed }) => {
+        let displayName = file.name.replace(/\.[^/.]+$/, "");
+        let answersData = {};
+        let x = 0, y = 0;
+        
+        if (parsed && parsed.answers) {
+          answersData = parsed.answers;
+          if (parsed.student_name) displayName = parsed.student_name;
+          if (parsed.calibration) {
+            x = parsed.calibration.x_shift || 0;
+            y = parsed.calibration.y_shift || 0;
+          }
+        } else {
+          answersData = parsed;
+        }
 
-  try {
-    const response = await fetch("http://localhost:8000/upload", {
-      method: "POST",
-      body: formData,
-    });
-    const data = await response.json();
-
-    if (data.status === "success") {
-      const newFiles = data.results.map((res) => ({
-        name: res.filename,
-        displayName: res.filename.replace(/\.[^/.]+$/, ""), // Strip extension
-        image: res.image,
-        data: res.data,
-        x: 0,
-        y: 0,
-        processed: true,
-      }));
-      state.files = [...state.files, ...newFiles];
-      renderFileList();
-      updateNavigation();
-      if (state.files.length > 0)
-        selectFile(state.files.length - newFiles.length);
-      setStatus(`Processed ${newFiles.length} files successfully.`);
+        jsonResults.push({
+          name: file.name,
+          displayName: displayName,
+          image: "",
+          data: answersData,
+          x: x,
+          y: y,
+          processed: true,
+          isJsonUpload: true
+        });
+      });
+    } catch (err) {
+      alert(err.message);
+      return;
     }
-  } catch (err) {
-    setStatus("Error: " + err.message);
-  } finally {
-    document.getElementById("loader").classList.add("hidden");
+  }
+
+  let imageResults = [];
+  if (imageFiles.length > 0) {
+    const formData = new FormData();
+    formData.append("exam_type", state.examType);
+    for (let file of imageFiles) formData.append("files", file);
+
+    setStatus("Uploading and processing batch...");
+    document.getElementById("loader").classList.remove("hidden");
+
+    try {
+      const response = await fetch("http://localhost:8000/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (data.status === "success") {
+        imageResults = data.results.map((res) => ({
+          name: res.filename,
+          displayName: res.filename.replace(/\.[^/.]+$/, ""), // Strip extension
+          image: res.image,
+          data: res.data,
+          x: 0,
+          y: 0,
+          processed: true,
+          isJsonUpload: false
+        }));
+      }
+    } catch (err) {
+      setStatus("Error: " + err.message);
+    } finally {
+      document.getElementById("loader").classList.add("hidden");
+    }
+  }
+
+  const allNewFiles = [...imageResults, ...jsonResults];
+  if (allNewFiles.length > 0) {
+    state.files = [...state.files, ...allNewFiles];
+    renderFileList();
+    updateNavigation();
+    selectFile(state.files.length - allNewFiles.length);
+    setStatus(`Processed ${allNewFiles.length} files successfully.`);
   }
 }
 
@@ -292,7 +362,43 @@ function selectFile(idx) {
   const nameInput = document.getElementById("student-name-input");
   if (nameInput) nameInput.value = file.displayName || file.name;
 
-  document.getElementById("omr-preview").src = file.image;
+  const omrPreview = document.getElementById("omr-preview");
+  let jsonPlaceholder = document.getElementById("json-placeholder");
+
+  if (file.isJsonUpload) {
+    if (omrPreview) omrPreview.style.display = "none";
+    if (!jsonPlaceholder) {
+      const viewport = document.getElementById("preview-viewport");
+      jsonPlaceholder = document.createElement("div");
+      jsonPlaceholder.id = "json-placeholder";
+      jsonPlaceholder.className = "json-placeholder-overlay";
+      jsonPlaceholder.innerHTML = `
+        <i data-lucide="file-json" class="json-placeholder-icon"></i>
+        <h3>OMR JSON Data Loaded</h3>
+        <p id="json-placeholder-filename"></p>
+        <div class="json-placeholder-badge">Calibration: X: <span id="json-x-val">0</span>, Y: <span id="json-y-val">0</span></div>
+      `;
+      viewport.appendChild(jsonPlaceholder);
+    }
+    jsonPlaceholder.style.display = "flex";
+    document.getElementById("json-placeholder-filename").innerText = file.name;
+    document.getElementById("json-x-val").innerText = file.x;
+    document.getElementById("json-y-val").innerText = file.y;
+    
+    // Disable calibration controls since they don't apply to JSON
+    document.querySelectorAll(".calibration-bar input, .calibration-bar button").forEach(el => el.disabled = true);
+  } else {
+    if (omrPreview) {
+      omrPreview.style.display = "block";
+      omrPreview.src = file.image;
+    }
+    if (jsonPlaceholder) {
+      jsonPlaceholder.style.display = "none";
+    }
+    // Enable calibration controls
+    document.querySelectorAll(".calibration-bar input, .calibration-bar button").forEach(el => el.disabled = false);
+  }
+
   document.getElementById("shift-x").value = file.x;
   document.getElementById("shift-y").value = file.y;
 
@@ -381,19 +487,36 @@ function selectOption(el) {
   const qNum = el.dataset.q;
   const opt = el.dataset.opt;
 
-  // Update visual state
   const row = el.closest(".q-row");
+  const wasSelected = el.classList.contains("selected");
+
+  // Clear all selections first
   row.querySelectorAll(".pill").forEach((p) => p.classList.remove("selected"));
-  el.classList.add("selected");
+  
+  // Remove existing status badge if any
+  const oldBadge = row.querySelector(".q-status");
+  if (oldBadge) oldBadge.remove();
 
-  // Remove status badge if it exists
-  const badge = row.querySelector(".q-status");
-  if (badge) badge.remove();
-
-  // Update data in state
-  if (state.currentFileIndex !== -1) {
-    state.files[state.currentFileIndex].data[subject][qNum] = opt;
+  if (wasSelected) {
+    // If it was already selected, we unmark it -> set to SKIPPED
+    if (state.currentFileIndex !== -1) {
+      state.files[state.currentFileIndex].data[subject][qNum] = "SKIPPED";
+    }
+    // Append Skip badge
+    const badge = document.createElement("span");
+    badge.className = "q-status skipped";
+    badge.innerText = "Skip";
+    row.appendChild(badge);
+  } else {
+    // Otherwise, mark it as selected
+    el.classList.add("selected");
+    if (state.currentFileIndex !== -1) {
+      state.files[state.currentFileIndex].data[subject][qNum] = opt;
+    }
   }
+
+  // Update subject answered count dynamically
+  updateSubjectCount(row);
 }
 
 function updateNumAnswer(el) {
@@ -402,6 +525,28 @@ function updateNumAnswer(el) {
   const val = el.value.trim() || "SKIPPED";
   if (state.currentFileIndex !== -1) {
     state.files[state.currentFileIndex].data[subject][qNum] = val;
+  }
+  const row = el.closest(".q-row");
+  updateSubjectCount(row);
+}
+
+function updateSubjectCount(row) {
+  const subjectSection = row.closest(".subject-section");
+  if (!subjectSection) return;
+  const countSpan = subjectSection.querySelector(".subject-count");
+  if (countSpan) {
+    const rows = subjectSection.querySelectorAll(".q-row");
+    let answeredCount = 0;
+    rows.forEach(r => {
+      const selectedPill = r.querySelector(".pill.selected");
+      const numInput = r.querySelector(".num-input");
+      if (selectedPill) {
+        answeredCount++;
+      } else if (numInput && numInput.value.trim() !== "" && numInput.value.trim() !== "SKIPPED" && numInput.value.trim() !== "INVALID") {
+        answeredCount++;
+      }
+    });
+    countSpan.innerText = `${answeredCount}/${rows.length} answered`;
   }
 }
 
@@ -484,6 +629,7 @@ function handleAnswerKeyUpload(e) {
 
       renderKeyPreview(keyData);
       setStatus("Answer key loaded: " + file.name);
+      updateNavigation();
     } catch (err) {
       setStatus("Invalid JSON file: " + err.message);
     }
@@ -503,9 +649,14 @@ function renderKeyPreview(data) {
     const entries =
       typeof questions === "object" ? Object.entries(questions) : [];
     for (const [qNum, answer] of entries) {
-      html += `<div class="key-cell">
+      const displayAns = answer || "—";
+      const isUnmarked = !answer || answer === "SKIPPED";
+      const colorStyle = isUnmarked ? "color: var(--text-muted);" : "";
+      const escapedSubj = subject.replace(/'/g, "\\'");
+      
+      html += `<div class="key-cell" onclick="editKeyCell(this, '${escapedSubj}', '${qNum}')" title="Click to edit / unmark">
                 <span class="key-cell-q">Q${qNum}</span>
-                <span class="key-cell-a">${answer}</span>
+                <span class="key-cell-a" style="${colorStyle}">${displayAns}</span>
             </div>`;
     }
     html += `</div></div>`;
@@ -514,12 +665,39 @@ function renderKeyPreview(data) {
   lucide.createIcons();
 }
 
+function editKeyCell(el, subject, qNum) {
+  const currentVal = state.answerKey[subject][qNum] || "";
+  const newVal = prompt(
+    `Edit Answer Key for ${subject} Q${qNum}:\n` +
+    `Enter correct answer (e.g. A, B, C, D, or multiple like A,B, or * for bonus, number for numericals).\n` +
+    `Leave blank to UNMARK:`,
+    currentVal
+  );
+  
+  if (newVal === null) return; // Cancelled
+  
+  const trimmed = newVal.trim().toUpperCase();
+  if (trimmed === "") {
+    // Unmark
+    delete state.answerKey[subject][qNum];
+    el.querySelector(".key-cell-a").innerText = "—";
+    el.querySelector(".key-cell-a").style.color = "var(--text-muted)";
+    setStatus(`Unmarked ${subject} Q${qNum} in Answer Key`);
+  } else {
+    state.answerKey[subject][qNum] = trimmed;
+    el.querySelector(".key-cell-a").innerText = trimmed;
+    el.querySelector(".key-cell-a").style.color = "var(--primary)";
+    setStatus(`Updated ${subject} Q${qNum} to ${trimmed} in Answer Key`);
+  }
+}
+
 function clearAnswerKey() {
   state.answerKey = {};
   document.getElementById("key-upload-zone").classList.remove("hidden");
   document.getElementById("key-preview").classList.add("hidden");
   document.getElementById("key-file-input").value = "";
   setStatus("Answer key removed");
+  updateNavigation();
 }
 
 // Step 4: Calculate on frontend + generate from templates
@@ -570,28 +748,30 @@ async function calculateFinal() {
 
       for (const [qNum, answer] of Object.entries(questions)) {
         const correctAns = keySection[qNum] || "";
-        if (answer === "SKIPPED" || answer === "" || answer === "INVALID") {
+        
+        let validAnswers = [];
+        if (Array.isArray(correctAns)) {
+          correctAns.forEach((item) => {
+            const parts = String(item)
+              .split(",")
+              .map((s) => s.trim().toUpperCase());
+            validAnswers = validAnswers.concat(parts);
+          });
+        } else {
+          validAnswers = String(correctAns)
+            .split(",")
+            .map((s) => s.trim().toUpperCase());
+        }
+
+        const isGraceQuestion = validAnswers.includes("*");
+
+        if (isGraceQuestion) {
+          correct++;
+        } else if (answer === "SKIPPED" || answer === "" || answer === "INVALID") {
           skipped++;
         } else {
           const studentAnsStr = String(answer).trim().toUpperCase();
-          let validAnswers = [];
-          if (Array.isArray(correctAns)) {
-            correctAns.forEach((item) => {
-              const parts = String(item)
-                .split(",")
-                .map((s) => s.trim().toUpperCase());
-              validAnswers = validAnswers.concat(parts);
-            });
-          } else {
-            validAnswers = String(correctAns)
-              .split(",")
-              .map((s) => s.trim().toUpperCase());
-          }
-
-          if (
-            validAnswers.includes("*") ||
-            validAnswers.includes(studentAnsStr)
-          ) {
+          if (validAnswers.includes(studentAnsStr)) {
             correct++;
           } else {
             wrong++;
@@ -633,6 +813,7 @@ async function calculateFinal() {
   document.getElementById("export-buttons").classList.remove("hidden");
   btn.innerHTML = '<i data-lucide="check-circle-2"></i> Done';
   setStatus(`Scored ${leaderboard.length} students`);
+  renderLeaderboard();
   lucide.createIcons();
 }
 
@@ -812,6 +993,7 @@ async function downloadScoreCards() {
 
     await generateAndDownloadPDF(allPagesContent, styles, state.examName + "_Scorecards");
     setStatus("Scorecards downloaded successfully");
+    downloadCheckedOMRsJSONZIP();
   } catch (err) {
     console.error(err);
     setStatus("Failed: " + err.message);
@@ -944,21 +1126,26 @@ function generateScorecardPage(student, template, today) {
       const correctAns = keySection[qNum] || "";
       let statusClass = "skipped";
 
-      if (answer === "SKIPPED" || answer === "") statusClass = "skipped";
-      else if (answer === "INVALID") statusClass = "invalid";
-      else {
-        const studentAnsStr = String(answer).trim().toUpperCase();
-        let validAnswers = [];
-        if (Array.isArray(correctAns)) {
-          correctAns.forEach(item => {
-            const parts = String(item).split(",").map(s => s.trim().toUpperCase());
-            validAnswers = validAnswers.concat(parts);
-          });
-        } else {
-          validAnswers = String(correctAns).split(",").map(s => s.trim().toUpperCase());
-        }
+      let validAnswers = [];
+      if (Array.isArray(correctAns)) {
+        correctAns.forEach(item => {
+          const parts = String(item).split(",").map(s => s.trim().toUpperCase());
+          validAnswers = validAnswers.concat(parts);
+        });
+      } else {
+        validAnswers = String(correctAns).split(",").map(s => s.trim().toUpperCase());
+      }
+      const isGraceQuestion = validAnswers.includes("*");
 
-        if (validAnswers.includes("*") || validAnswers.includes(studentAnsStr)) statusClass = "correct";
+      if (isGraceQuestion) {
+        statusClass = "correct";
+      } else if (answer === "SKIPPED" || answer === "") {
+        statusClass = "skipped";
+      } else if (answer === "INVALID") {
+        statusClass = "invalid";
+      } else {
+        const studentAnsStr = String(answer).trim().toUpperCase();
+        if (validAnswers.includes(studentAnsStr)) statusClass = "correct";
         else statusClass = "wrong";
       }
 
@@ -978,6 +1165,7 @@ function generateScorecardPage(student, template, today) {
   }
 
   html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
+  html = html.replace(/\{\{EXAM_NAME\}\}/g, state.examName.toUpperCase());
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
   const content = bodyMatch ? bodyMatch[1] : "";
   return `<div class="theme-scorecard">${content}</div>`;
@@ -987,12 +1175,15 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
   const isTopper = rank === 1;
   let html = isTopper ? topperTemplate : compTemplate;
 
+  const maxScore = state.examType === "JEE" ? 300 : 720;
+  const maxSubjScore = state.examType === "JEE" ? 100 : 180;
+
   html = html.replace(/{{STUDENT_NAME}}/g, student.name);
   html = html.replace(/{{DATE}}/g, today);
   html = html.replace(/{{EXAM_NAME}}/g, state.examName.toUpperCase());
-  html = html.replace(/{{EXAM_TYPE}}/g, state.examType === "JEE" ? "JEE MAINS" : "NEET AITS");
+  html = html.replace(/{{EXAM_TYPE}}/g, state.examName.toUpperCase());
   html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
-  html = html.replace(/{{TOTAL_SCORE}}/g, student.totalScore);
+  html = html.replace(/{{TOTAL_SCORE}}/g, student.totalScore + "/" + maxScore);
 
   const totalQuestions = Object.values(state.answerKey).reduce((acc, subj) => acc + Object.keys(subj).length, 0);
   const totalAccuracy = student.attempted > 0 ? Math.round((student.totalCorrect / student.attempted) * 100) : 0;
@@ -1030,7 +1221,7 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
       
       rowsHtml += `<tr>
                 <td>${subj}</td>
-                <td><b>${stats.score}</b></td>
+                <td><b>${stats.score}/${maxSubjScore}</b></td>
                 <td>${acc}%</td>
                 <td>${attRate}%</td>
                 <td style="color: var(--danger)">${stats.wrong}</td>
@@ -1068,9 +1259,9 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
 
       rowsHtml += `<tr>
                 <td>${subj}</td>
-                <td><b>${stats.score}</b></td>
-                <td style="color: var(--success)">${topStats.score}</td>
-                <td>${avg}</td>
+                <td><b>${stats.score}/${maxSubjScore}</b></td>
+                <td style="color: var(--success)">${topStats.score}/${maxSubjScore}</td>
+                <td>${avg}/${maxSubjScore}</td>
                 <td>${acc}%</td>
                 <td>${attRate}%</td>
                 <td>${statusTag}</td>
@@ -1084,7 +1275,7 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
   return `<div class="theme-analysis">${content}</div>`;
 }
 
-async function generateAndDownloadPDF(htmlContent, styles, filename) {
+async function generatePDFBlob(htmlContent, styles, filename) {
   const finalHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">
             <title>${filename}</title>
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1101,7 +1292,11 @@ async function generateAndDownloadPDF(htmlContent, styles, filename) {
   });
 
   if (!pdfRes.ok) throw new Error("PDF conversion failed");
-  const blob = await pdfRes.blob();
+  return await pdfRes.blob();
+}
+
+async function generateAndDownloadPDF(htmlContent, styles, filename) {
+  const blob = await generatePDFBlob(htmlContent, styles, filename);
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `${filename}.pdf`;
@@ -1110,5 +1305,312 @@ async function generateAndDownloadPDF(htmlContent, styles, filename) {
 
 function setStatus(text) {
   document.getElementById("status-text").innerText = text;
+}
+
+/* ===== NEW: INDIVIDUAL REPORTS & LEADERBOARD ACTIONS ===== */
+
+function renderLeaderboard() {
+  const container = document.getElementById("leaderboard-details-container");
+  const tbody = document.getElementById("leaderboard-rows");
+  
+  if (!state.leaderboard || state.leaderboard.length === 0) {
+    container.classList.add("hidden");
+    return;
+  }
+  
+  container.classList.remove("hidden");
+  tbody.innerHTML = "";
+  
+  state.leaderboard.forEach((student, index) => {
+    const rank = index + 1;
+    const attempted = student.attempted;
+    const accuracy = attempted > 0 ? Math.round((student.totalCorrect / attempted) * 100) : 0;
+    
+    let rankBadgeClass = "rank-other";
+    if (rank === 1) rankBadgeClass = "rank-badge rank-1";
+    else if (rank === 2) rankBadgeClass = "rank-badge rank-2";
+    else if (rank === 3) rankBadgeClass = "rank-badge rank-3";
+    
+    const tr = document.createElement("tr");
+    tr.dataset.name = student.name.toLowerCase();
+    tr.innerHTML = `
+      <td><span class="${rankBadgeClass}">${rank}</span></td>
+      <td style="font-weight: 600;">${student.name}</td>
+      <td style="font-weight: 700; color: var(--primary);">${student.totalScore}</td>
+      <td>${accuracy}%</td>
+      <td style="color: var(--success); font-weight: 600;">${student.totalCorrect}</td>
+      <td style="color: var(--danger); font-weight: 600;">${student.totalWrong}</td>
+      <td style="color: var(--text-muted);">${student.totalSkipped}</td>
+      <td style="text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+        <button class="btn-action" onclick="downloadIndividualReport(${index})">
+          <i data-lucide="download"></i> Report
+        </button>
+        <button class="btn-action" onclick="downloadIndividualJSON(${index})">
+          <i data-lucide="file-json"></i> JSON
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  // Clear search input on render
+  const searchInput = document.getElementById("student-search");
+  if (searchInput) searchInput.value = "";
+  
+  lucide.createIcons();
+}
+
+function filterLeaderboard(query) {
+  const lowerQuery = query.toLowerCase().trim();
+  const rows = document.querySelectorAll("#leaderboard-rows tr");
+  
+  rows.forEach(row => {
+    const name = row.dataset.name || "";
+    if (name.includes(lowerQuery)) {
+      row.classList.remove("hidden");
+    } else {
+      row.classList.add("hidden");
+    }
+  });
+}
+
+async function downloadIndividualReport(index) {
+  const student = state.leaderboard[index];
+  if (!student) return;
+  
+  setStatus(`Generating report for ${student.name}...`);
+  try {
+    const [scoreRes, compRes, topperRes] = await Promise.all([
+      fetch(`/template/${state.examType}`),
+      fetch(`/template/comparison`),
+      fetch(`/template/topper`)
+    ]);
+    
+    const { template: scoreTemplate } = await scoreRes.json();
+    const { template: compTemplate } = await compRes.json();
+    const { template: topperTemplate } = await topperRes.json();
+    
+    const today = new Date().toLocaleDateString("en-IN");
+    const classStats = getClassStats();
+    const topper = state.leaderboard[0];
+
+    const scoreStyleMatch = scoreTemplate.match(/<style>([\s\S]*?)<\/style>/i);
+    const compStyleMatch = compTemplate.match(/<style>([\s\S]*?)<\/style>/i);
+    let styles = (scoreStyleMatch ? scoreStyleMatch[1] : "") + (compStyleMatch ? compStyleMatch[1] : "");
+    styles += `
+        body { display: block !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+        .pdf-page-wrapper { 
+            width: 100%; 
+            page-break-after: always; 
+            overflow: visible;
+        }
+        .pdf-page-wrapper:last-child { page-break-after: avoid !important; }
+    `;
+
+    let allPagesContent = "";
+    // Page 1: Scorecard
+    allPagesContent += `<div class="pdf-page-wrapper">${generateScorecardPage(student, scoreTemplate, today)}</div>`;
+    // Page 2: Analysis (Topper if rank is 1, comparison for others)
+    allPagesContent += `<div class="pdf-page-wrapper">${generateAnalysisPage(student, index + 1, topper, classStats, compTemplate, topperTemplate, today)}</div>`;
+
+    await generateAndDownloadPDF(allPagesContent, styles, `${student.name}_Report`);
+    setStatus(`Report for ${student.name} downloaded successfully`);
+  } catch (err) {
+    console.error(err);
+    alert("Report generation failed: " + err.message);
+    setStatus("Failed: " + err.message);
+  }
+}
+
+async function downloadAllIndividualZIP() {
+  if (!state.leaderboard || state.leaderboard.length === 0) {
+    setStatus("Calculate first");
+    return;
+  }
+  
+  const loader = document.getElementById("global-loader");
+  const loaderTitle = document.getElementById("global-loader-title");
+  const loaderMsg = document.getElementById("global-loader-msg");
+  const loaderProgress = document.getElementById("global-loader-progress");
+  
+  loader.classList.remove("hidden");
+  loaderTitle.innerText = "Generating ZIP Archive";
+  loaderMsg.innerText = `Starting report generation for ${state.leaderboard.length} students...`;
+  loaderProgress.style.width = "0%";
+  
+  try {
+    const [scoreRes, compRes, topperRes] = await Promise.all([
+      fetch(`/template/${state.examType}`),
+      fetch(`/template/comparison`),
+      fetch(`/template/topper`)
+    ]);
+    
+    const { template: scoreTemplate } = await scoreRes.json();
+    const { template: compTemplate } = await compRes.json();
+    const { template: topperTemplate } = await topperRes.json();
+    
+    const today = new Date().toLocaleDateString("en-IN");
+    const classStats = getClassStats();
+    const topper = state.leaderboard[0];
+
+    const scoreStyleMatch = scoreTemplate.match(/<style>([\s\S]*?)<\/style>/i);
+    const compStyleMatch = compTemplate.match(/<style>([\s\S]*?)<\/style>/i);
+    let styles = (scoreStyleMatch ? scoreStyleMatch[1] : "") + (compStyleMatch ? compStyleMatch[1] : "");
+    styles += `
+        body { display: block !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+        .pdf-page-wrapper { 
+            width: 100%; 
+            page-break-after: always; 
+            overflow: visible;
+        }
+        .pdf-page-wrapper:last-child { page-break-after: avoid !important; }
+    `;
+
+    const zip = new JSZip();
+    const total = state.leaderboard.length;
+
+    for (let i = 0; i < total; i++) {
+      const student = state.leaderboard[i];
+      loaderMsg.innerText = `Generating PDF for ${student.name} (${i + 1}/${total})...`;
+      loaderProgress.style.width = `${Math.round((i / total) * 100)}%`;
+
+      let allPagesContent = "";
+      // Page 1: Scorecard
+      allPagesContent += `<div class="pdf-page-wrapper">${generateScorecardPage(student, scoreTemplate, today)}</div>`;
+      // Page 2: Analysis (Topper if rank is 1, comparison for others)
+      allPagesContent += `<div class="pdf-page-wrapper">${generateAnalysisPage(student, i + 1, topper, classStats, compTemplate, topperTemplate, today)}</div>`;
+
+      const pdfBlob = await generatePDFBlob(allPagesContent, styles, `${student.name}_Report`);
+      zip.file(`${i + 1}_${student.name}_Report.pdf`, pdfBlob);
+    }
+
+    loaderMsg.innerText = "Compressing files into ZIP archive...";
+    loaderProgress.style.width = "95%";
+
+    const content = await zip.generateAsync({ type: "blob" });
+    saveAs(content, `${state.examName}_Student_Reports.zip`);
+
+    loaderProgress.style.width = "100%";
+    setStatus("ZIP download started successfully!");
+    setTimeout(() => {
+      loader.classList.add("hidden");
+    }, 1000);
+  } catch (err) {
+    console.error(err);
+    alert("ZIP Generation failed: " + err.message);
+    loader.classList.add("hidden");
+    setStatus("Failed to generate ZIP: " + err.message);
+  }
+}
+
+/* ===== NEW DOWNLOAD JSON FUNCTIONS ===== */
+
+function downloadActiveOMRJSON() {
+  if (state.currentFileIndex === -1) {
+    alert("No OMR sheet selected.");
+    return;
+  }
+  const file = state.files[state.currentFileIndex];
+  const name = file.displayName || file.name.replace(/\.[^/.]+$/, "");
+  
+  const jsonData = {
+    student_name: name,
+    exam_type: state.examType,
+    calibration: {
+      x_shift: file.x,
+      y_shift: file.y
+    },
+    answers: file.data
+  };
+  
+  const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${name}_OMR_Data.json`;
+  a.click();
+  setStatus(`JSON for ${name} downloaded`);
+}
+
+function downloadCheckedOMRsJSONZIP() {
+  if (!state.files || state.files.length === 0) {
+    alert("No OMR files processed.");
+    return;
+  }
+  
+  try {
+    setStatus("Generating OMR JSON ZIP...");
+    const zip = new JSZip();
+    
+    state.files.forEach((file, idx) => {
+      const name = file.displayName || file.name.replace(/\.[^/.]+$/, "");
+      const jsonData = {
+        student_name: name,
+        exam_type: state.examType,
+        calibration: {
+          x_shift: file.x,
+          y_shift: file.y
+        },
+        answers: file.data
+      };
+      
+      if (state.leaderboard && state.leaderboard.length > 0) {
+        const scoreInfo = state.leaderboard.find(l => l.name === name);
+        if (scoreInfo) {
+          jsonData.score_summary = {
+            total_score: scoreInfo.totalScore,
+            total_correct: scoreInfo.totalCorrect,
+            total_wrong: scoreInfo.totalWrong,
+            total_skipped: scoreInfo.totalSkipped,
+            attempted: scoreInfo.attempted,
+            subjects: scoreInfo.subjects
+          };
+        }
+      }
+      zip.file(`${idx + 1}_${name}_OMR_Data.json`, JSON.stringify(jsonData, null, 2));
+    });
+    
+    zip.generateAsync({ type: "blob" }).then((content) => {
+      saveAs(content, `${state.examName || "Checked"}_OMR_JSON_Data.zip`);
+      setStatus("OMR JSON ZIP downloaded successfully!");
+    });
+  } catch (err) {
+    console.error(err);
+    alert("JSON ZIP generation failed: " + err.message);
+    setStatus("Failed to generate JSON ZIP");
+  }
+}
+
+function downloadIndividualJSON(index) {
+  const student = state.leaderboard[index];
+  if (!student) return;
+  
+  const file = state.files.find(f => (f.displayName || f.name.replace(/\.[^/.]+$/, "")) === student.name);
+  const x_shift = file ? file.x : 0;
+  const y_shift = file ? file.y : 0;
+  
+  const jsonData = {
+    student_name: student.name,
+    exam_type: state.examType,
+    calibration: {
+      x_shift: x_shift,
+      y_shift: y_shift
+    },
+    answers: student.data,
+    score_summary: {
+      total_score: student.totalScore,
+      total_correct: student.totalCorrect,
+      total_wrong: student.totalWrong,
+      total_skipped: student.totalSkipped,
+      attempted: student.attempted,
+      subjects: student.subjects
+    }
+  };
+  
+  const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${student.name}_OMR_Data.json`;
+  a.click();
+  setStatus(`JSON for ${student.name} downloaded`);
 }
 

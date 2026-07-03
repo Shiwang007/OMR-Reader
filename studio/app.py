@@ -210,11 +210,22 @@ async def generate_results(request: dict):
             
             for q_num, answer in questions.items():
                 correct_ans = key_section.get(q_num, "")
-                if answer == "SKIPPED" or answer == "":
+                
+                valid_answers = []
+                if isinstance(correct_ans, list):
+                    for item in correct_ans:
+                        parts = [p.strip().upper() for p in str(item).split(",")]
+                        valid_answers.extend(parts)
+                else:
+                    valid_answers = [p.strip().upper() for p in str(correct_ans).split(",")]
+                
+                is_grace = "*" in valid_answers
+                
+                if is_grace:
+                    correct += 1
+                elif answer == "SKIPPED" or answer == "" or answer == "INVALID":
                     skipped += 1
-                elif answer == "INVALID":
-                    skipped += 1
-                elif str(answer) == str(correct_ans):
+                elif str(answer).strip().upper() in valid_answers:
                     correct += 1
                 else:
                     incorrect += 1

@@ -195,11 +195,11 @@
         <div class="header">
             <div class="student-info">
                 <h1>{{STUDENT_NAME}}</h1>
-                <p style="margin: 5px 0 0 0; font-size: 12px; color: #64748b;">JEE MAINS &bull; {{DATE}}</p>
+                <p style="margin: 5px 0 0 0; font-size: 12px; color: #64748b;">{{EXAM_NAME}} &bull; {{DATE}}</p>
             </div>
             <div class="stats-summary">
                 <div class="stat-item">
-                    <span class="stat-val" style="color: var(--primary);">{{TOTAL_SCORE}}</span>
+                    <span class="stat-val" style="color: var(--primary);">{{TOTAL_SCORE}}/300</span>
                     <span class="stat-lbl">Score</span>
                 </div>
                 <div class="stat-item">
@@ -234,7 +234,7 @@
                     </table>
                 </div>
                 <div class="subject-footer">
-                    C: {{PHYSICS_RIGHT}} &nbsp; W: {{PHYSICS_WRONG}} &nbsp; MARKS: {{PHYSICS_SCORE}}
+                    C: {{PHYSICS_RIGHT}} &nbsp; W: {{PHYSICS_WRONG}} &nbsp; S: {{PHYSICS_SCORE}}/100
                 </div>
             </div>
 
@@ -248,7 +248,7 @@
                     </table>
                 </div>
                 <div class="subject-footer">
-                    C: {{CHEMISTRY_RIGHT}} &nbsp; W: {{CHEMISTRY_WRONG}} &nbsp; MARKS: {{CHEMISTRY_SCORE}}
+                    C: {{CHEMISTRY_RIGHT}} &nbsp; W: {{CHEMISTRY_WRONG}} &nbsp; S: {{CHEMISTRY_SCORE}}/100
                 </div>
             </div>
 
@@ -262,7 +262,7 @@
                     </table>
                 </div>
                 <div class="subject-footer">
-                    C: {{MATHEMATICS_RIGHT}} &nbsp; W: {{MATHEMATICS_WRONG}} &nbsp; MARKS: {{MATHEMATICS_SCORE}}
+                    C: {{MATHEMATICS_RIGHT}} &nbsp; W: {{MATHEMATICS_WRONG}} &nbsp; S: {{MATHEMATICS_SCORE}}/100
                 </div>
             </div>
         </div>

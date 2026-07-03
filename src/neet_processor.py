@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 
 class NEETOMREngine:
     def __init__(self):
-        self.template_path = r"f:\Medjeex\Medjeex-OMR-Engine\templates\neet_template.json"
+        self.template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates", "neet_template.json")
         with open(self.template_path, 'r') as f:
             self.template = json.load(f)
         self.X_SHIFT = 0

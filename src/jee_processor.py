@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 
 class JEEOMREngine:
     def __init__(self):
-        self.template_path = r"f:\Medjeex\Medjeex-OMR-Engine\templates\jee_mains_template.json"
+        self.template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates", "jee_mains_template.json")
         with open(self.template_path, 'r') as f:
             self.template = json.load(f)
         self.X_SHIFT = -20

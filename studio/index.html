@@ -6,9 +6,23 @@
     <title>Medjeex OMR Studio</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Global Progress Loader Overlay -->
+    <div id="global-loader" class="global-loader hidden">
+        <div class="loader-card">
+            <div class="spinner"></div>
+            <h3 id="global-loader-title">Generating PDFs</h3>
+            <p id="global-loader-msg">Preparing documents, please wait...</p>
+            <div class="progress-container">
+                <div id="global-loader-progress" class="progress-bar"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="app" class="app-container">
         <!-- Header & Stepper -->
         <header class="header">
@@ -73,8 +87,8 @@
                     <aside class="file-sidebar">
                         <div id="drop-zone" class="drop-zone">
                             <i data-lucide="upload-cloud"></i>
-                            <p>Drop OMR scans here</p>
-                            <input type="file" id="file-input" multiple accept="image/*" hidden>
+                            <p>Drop OMR scans or JSONs here</p>
+                            <input type="file" id="file-input" multiple accept="image/*,.json" hidden>
                             <button class="btn-ghost" onclick="document.getElementById('file-input').click()">Browse Files</button>
                         </div>
                         <div class="sidebar-meta">
@@ -131,9 +145,14 @@
                                 <i data-lucide="clipboard-list"></i>
                                 <span>Detected Answers</span>
                             </div>
-                            <button class="btn-save" onclick="saveAnswerEdits()">
-                                <i data-lucide="save"></i> Save
-                            </button>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn-ghost" style="padding: 0.35rem 0.6rem; display: inline-flex; align-items: center; gap: 0.3rem;" onclick="downloadActiveOMRJSON()" title="Download JSON of this OMR">
+                                    <i data-lucide="download"></i> JSON
+                                </button>
+                                <button class="btn-save" onclick="saveAnswerEdits()">
+                                    <i data-lucide="save"></i> Save
+                                </button>
+                            </div>
                         </div>
                         <div id="answer-panel" class="answer-panel">
                             <div class="answer-empty">
@@ -209,6 +228,37 @@
                         <button class="btn-secondary" style="margin-top: 20px;" onclick="window.location.reload()">
                             <i data-lucide="refresh-cw"></i> Start New Batch (Reset)
                         </button>
+                    </div>
+                </div>
+
+                <div id="leaderboard-details-container" class="leaderboard-details-card hidden">
+                    <div class="leaderboard-header">
+                        <h2>Student Rankings & Individual Reports</h2>
+                        <div class="leaderboard-actions">
+                            <input type="text" id="student-search" placeholder="Search student..." oninput="filterLeaderboard(this.value)">
+                            <button class="btn-primary" onclick="downloadAllIndividualZIP()">
+                                <i data-lucide="folder-archive"></i> Download All (ZIP)
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="leaderboard-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Name</th>
+                                    <th>Score</th>
+                                    <th>Accuracy</th>
+                                    <th>Correct</th>
+                                    <th>Incorrect</th>
+                                    <th>Skipped</th>
+                                    <th style="text-align: right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-rows">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
