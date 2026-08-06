@@ -112,14 +112,14 @@ def numerical_grid(rpts, q_num):
             if near:
                 x, y = near[0]
                 bubbles.append({"opt": f"{ci}_{vi}", "x": round(x,1), "y": round(y,1)})
-    
+                
     # Minus bubble (leftmost column, if we have 7 columns)
     if len(xs) >= 7:
         mx = xs[0]
         minus_pts = [(x,y) for x,y in rpts if abs(x-mx)<20]
         if minus_pts:
-            # Usually the lowest one is the minus sign
-            x, y = minus_pts[-1]
+            # The minus bubble in Image 4 is on the last row (highest Y)
+            x, y = max(minus_pts, key=lambda p: p[1])
             bubbles.append({"opt": "minus", "x": round(x,1), "y": round(y,1)})
             
     return {str(q_num): {"type": "numerical", "bubbles": bubbles}}

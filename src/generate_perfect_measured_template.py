@@ -38,64 +38,78 @@ print(f"Raw contours: {len(all_raw)}, unique bubbles: {len(circles)}")
 
 def cluster_1d(vals, tol=12):
     vals = sorted(vals)
+    if not vals: return []
     clusters = []
     curr = [vals[0]]
     for v in vals[1:]:
         if v - curr[-1] <= tol:
             curr.append(v)
         else:
-            clusters.append(float(np.mean(curr)))
+            clusters.append(float(sum(curr)/len(curr)))
             curr = [v]
-    clusters.append(float(np.mean(curr)))
+    clusters.append(float(sum(curr)/len(curr)))
     return sorted(clusters)
+
+def get_10_rows(ys):
+    """Robustly extract exactly 10 digit rows by looking for the correct physical height span (~414 pixels)."""
+    if len(ys) <= 10:
+        return ys[-10:]
+    
+    best_subset = None
+    best_error = float('inf')
+    
+    for i in range(len(ys) - 9):
+        subset = ys[i:i+10]
+        span = subset[-1] - subset[0]
+        error = abs(span - 415.0) # 9 gaps of ~46.1 pixels = 415
+        
+        # Check max internal gap to avoid skipping a real digit row
+        max_gap = max(subset[j] - subset[j-1] for j in range(1, 10))
+        if max_gap > 55:
+            continue
+            
+        if error < best_error:
+            best_error = error
+            best_subset = subset
+            
+    return best_subset if best_subset else ys[-10:]
 
 
 def extract_grid_rows(pts, num_rows, num_cols, pitch_x=46.1):
     """Cluster points into rows by Y, then within each row sort by X.
-    If a row has fewer than num_cols points, interpolate missing ones."""
+    Uses globally detected X columns to ensure missing left bubbles don't shift the row."""
     if not pts:
         return [[(0, 0)] * num_cols] * num_rows
 
     ys = [p[1] for p in pts]
+    xs = [p[0] for p in pts]
+    
     row_centers = cluster_1d(ys, tol=15)[:num_rows]
+    col_centers = cluster_1d(xs, tol=15)[:num_cols]
 
     rows = []
     for ry in row_centers:
         r_pts = [p for p in pts if abs(p[1] - ry) < 15]
-        # dedup within row
-        unique = []
+        
+        # Snap each point to the nearest global col_center
+        slots = [None] * num_cols
         for p in r_pts:
-            if not any(abs(p[0] - u[0]) < 15.0 for u in unique):
-                unique.append(p)
-        unique.sort(key=lambda p: p[0])
+            # find closest col_center
+            best_cidx = min(range(len(col_centers)), key=lambda i: abs(col_centers[i] - p[0]))
+            if abs(col_centers[best_cidx] - p[0]) < 15:
+                slots[best_cidx] = p
+                
+        # Fill in missing slots with col_center X and current row Y
+        for i in range(num_cols):
+            if slots[i] is None:
+                # If a whole column is missing from col_centers, extrapolate from others
+                if i < len(col_centers):
+                    cx = col_centers[i]
+                else:
+                    cx = col_centers[0] + i * pitch_x if col_centers else 0
+                slots[i] = (round(cx, 1), round(ry, 1))
 
-        # interpolate missing columns
-        if len(unique) < num_cols and len(unique) >= 2:
-            # estimate pitch from detected points
-            actual_pitch = (unique[-1][0] - unique[0][0]) / (len(unique) - 1)
-            if actual_pitch < 20:
-                actual_pitch = pitch_x
-        elif len(unique) < num_cols:
-            actual_pitch = pitch_x
-        else:
-            actual_pitch = pitch_x
-
-        if len(unique) < num_cols and unique:
-            ref = unique[0]
-            slots = [None] * num_cols
-            for p in unique:
-                idx = int(round((p[0] - ref[0]) / actual_pitch))
-                if 0 <= idx < num_cols:
-                    slots[idx] = p
-            ref_idx = next(i for i, s in enumerate(slots) if s is not None)
-            ref_pt = slots[ref_idx]
-            for i in range(num_cols):
-                if slots[i] is None:
-                    slots[i] = (round(ref_pt[0] + (i - ref_idx) * actual_pitch, 1),
-                                round(ref_pt[1], 1))
-            unique = slots
-
-        rows.append(unique[:num_cols])
+        rows.append(slots[:num_cols])
     return rows
 
 
@@ -177,24 +191,24 @@ subjects = [
     {
         "name": "Maths",
         "mcq_l_x": (190, 360), "mcq_r_x": (580, 750),
-        "num_lt_x": (140, 380), "num_rt_x": (510, 750),
-        "num_lb_x": (140, 380), "num_rb_x": (460, 750),
+        "num_lt_x": (90, 445), "num_rt_x": (445, 810),
+        "num_lb_x": (90, 445), "num_rb_x": (445, 810),
         "sec1_qs": [1, 2, 3, 4], "sec2_qs": [5, 6, 7, 8],
         "sec3_qs": [9, 10, 11, 12], "sec4_qs": [13, 14, 15, 16],
     },
     {
         "name": "Physics",
         "mcq_l_x": (940, 1130), "mcq_r_x": (1330, 1510),
-        "num_lt_x": (900, 1140), "num_rt_x": (1270, 1550),
-        "num_lb_x": (900, 1140), "num_rb_x": (1270, 1550),
+        "num_lt_x": (840, 1204), "num_rt_x": (1204, 1580),
+        "num_lb_x": (840, 1204), "num_rb_x": (1204, 1580),
         "sec1_qs": [17, 18, 19, 20], "sec2_qs": [21, 22, 23, 24],
         "sec3_qs": [25, 26, 27, 28], "sec4_qs": [29, 30, 31, 32],
     },
     {
         "name": "Chemistry",
         "mcq_l_x": (1710, 1900), "mcq_r_x": (2090, 2310),
-        "num_lt_x": (1660, 1940), "num_rt_x": (2075, 2310),
-        "num_lb_x": (1660, 1940), "num_rb_x": (2075, 2310),
+        "num_lt_x": (1610, 1973), "num_rt_x": (1973, 2350),
+        "num_lb_x": (1610, 1973), "num_rb_x": (1973, 2350),
         "sec1_qs": [33, 34, 35, 36], "sec2_qs": [37, 38, 39, 40],
         "sec3_qs": [41, 42, 43, 44], "sec4_qs": [45, 46, 47, 48],
     },
@@ -239,33 +253,49 @@ for s in subjects:
         (s["sec3_qs"][2], s["num_lb_x"], SEC3_BOT_Y),
         (s["sec3_qs"][3], s["num_rb_x"], SEC3_BOT_Y),
     ]
+
+    def numerical_grid(rpts, qnum):
+        if not rpts:
+            return {"type": "numerical", "section": "3", "subject": subj, "columns": []}
+
+        xs = sorted([p[0] for p in rpts])
+        ys = sorted([p[1] for p in rpts])
+        col_centers = cluster_1d(xs, tol=15)
+        
+        real_ys = [cy for cy in ys if any(
+            abs(p[0]-cx) < 14 and abs(p[1]-cy) < 14
+            for p in rpts for cx in col_centers
+        )]
+        row_centers = get_10_rows(cluster_1d(real_ys, tol=12))
+
+        cols_data = []
+        
+        # Determine minus sign column vs digit columns based on bubble count in that column
+        for cx in col_centers:
+            col_pts = [p for p in rpts if abs(p[0]-cx) < 15]
+            # Since RETR_LIST finds multiple contours per bubble, a minus sign has 1-4 points, 
+            # while a 10-digit column has 10-20 points.
+            if len(col_pts) <= 4:
+                # Minus sign
+                # Find the actual coordinates of the minus sign bubble (closest to bottom)
+                m_pt = max(col_pts, key=lambda p: p[1])
+                cols_data.append([{"val": "-", "x": round(m_pt[0], 1), "y": round(m_pt[1], 1)}])
+            elif len(col_pts) >= 6:
+                # Digit column
+                col_bubbles = []
+                for vi, cy in enumerate(row_centers):
+                    near = [(x,y) for x,y in rpts if abs(x-cx)<15 and abs(y-cy)<15]
+                    if near:
+                        col_bubbles.append({"val": str(vi), "x": round(near[0][0], 1), "y": round(near[0][1], 1)})
+                    else:
+                        col_bubbles.append({"val": str(vi), "x": round(cx, 1), "y": round(cy, 1)})
+                cols_data.append(col_bubbles)
+
+        return {"type": "numerical", "section": "3", "subject": subj, "columns": cols_data}
+
     for qnum, x_range, y_range in num_regions:
         npts = pts_in_box(*x_range, *y_range)
-        if not npts:
-            questions_template[str(qnum)] = {"type": "numerical", "section": "3",
-                                              "subject": subj, "columns": []}
-            continue
-
-        # cluster by X to find actual number of columns (5 or 6)
-        xs = sorted([p[0] for p in npts])
-        col_centers = cluster_1d(xs, tol=15)
-        # filter out any columns with only 1 bubble (decimal-point marker, not a digit column)
-        real_cols = []
-        for cx in col_centers:
-            cnt = len([p for p in npts if abs(p[0] - cx) < 15])
-            if cnt >= 5:  # real digit column has 10 bubbles, allow some slack
-                real_cols.append(cx)
-
-        num_digit_cols = len(real_cols)
-        n_cols = extract_grid_cols(npts, num_digit_cols, 10)
-        cols_data = []
-        for col in n_cols:
-            if len(col) < 10:
-                continue  # skip non-digit columns
-            cols_data.append([{"val": str(v), "x": round(pt[0], 1), "y": round(pt[1], 1)}
-                              for v, pt in enumerate(col)])
-        questions_template[str(qnum)] = {"type": "numerical", "section": "3",
-                                          "subject": subj, "columns": cols_data}
+        questions_template[str(qnum)] = numerical_grid(npts, qnum)
 
     # ── Section 4: MCQ bottom (4 questions x 4 options, 2 left + 2 right) ────
     sec4l_pts = pts_in_box(*s["mcq_l_x"], *SEC4_Y)

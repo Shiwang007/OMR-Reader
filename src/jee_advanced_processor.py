@@ -26,7 +26,7 @@ class JEEAdvancedOMREngine:
             aspect_ratio = cw / float(ch)
             area = cv2.contourArea(c)
             
-            if 30 < cw < 110 and 30 < ch < 110 and 0.7 < aspect_ratio < 1.3 and area > 900:
+            if 30 < cw < 110 and 30 < ch < 110 and 0.7 < aspect_ratio < 1.5 and area > 900:
                 corners.append((x + cw / 2.0, y + ch / 2.0))
 
         if len(corners) < 4:
@@ -162,6 +162,14 @@ class JEEAdvancedOMREngine:
                             cv2.circle(vis_img, (int(bx), int(by)), 14, (0, 0, 255), -1)
                         else:
                             digit_str += "?"
+                            
+                    # Add decimal point before last two digits if there are at least 3 digits
+                    actual_digits = digit_str.replace("-", "")
+                    if len(actual_digits) >= 3:
+                        if digit_str.startswith("-"):
+                            digit_str = digit_str[:-2] + "." + digit_str[-2:]
+                        else:
+                            digit_str = digit_str[:-2] + "." + digit_str[-2:]
 
                     res_val = digit_str if "?" not in digit_str else "SKIPPED"
                     results["questions"][q_str] = res_val
