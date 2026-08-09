@@ -48,15 +48,19 @@ class Img4Processor:
             bubbles = q_data["bubbles"]
 
             if q_data["type"] == "mcq":
-                selected = []
+                marked = []
                 for b in bubbles:
                     filled, ratio = bubble_filled(b["x"], b["y"])
                     color = (0, 200, 0) if filled else (0, 0, 200)
                     cv2.circle(vis, (int(b["x"]), int(b["y"])), 9, color, 2)
                     if filled:
-                        selected.append(b["opt"])
+                        marked.append(b["opt"])
                         cv2.circle(vis, (int(b["x"]), int(b["y"])), 6, (0, 200, 0), -1)
-                results[q_num] = selected
+                
+                if len(marked) == 0:
+                    results[q_num] = "SKIPPED"
+                else:
+                    results[q_num] = ",".join(marked)
 
             else:  # numerical
                 digits = {}   # col_i -> val_i

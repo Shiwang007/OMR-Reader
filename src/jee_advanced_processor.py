@@ -158,10 +158,17 @@ class JEEAdvancedOMREngine:
                             cv2.circle(vis_img, (int(c_bx), int(c_by)), 12, (0, 0, 255), 1)
 
                         if top_d > 0.55:
-                            digit_str += top_val
+                            if top_val == "-":
+                                digit_str += "-"
+                            else:
+                                digit_str += top_val
                             cv2.circle(vis_img, (int(bx), int(by)), 14, (0, 0, 255), -1)
                         else:
-                            digit_str += "?"
+                            if col_i == 0 and len(col) == 1 and col[0]["val"] == "-":
+                                # It's just a minus sign column that wasn't filled -> positive number
+                                pass
+                            else:
+                                digit_str += "?"
                             
                     # Add decimal point before last two digits if there are at least 3 digits
                     actual_digits = digit_str.replace("-", "")

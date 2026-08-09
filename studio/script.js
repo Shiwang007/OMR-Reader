@@ -187,7 +187,7 @@ async function selectExam(type) {
   // UI Reset
   document.querySelectorAll(".exam-card").forEach((c) => {
     c.classList.remove("selected");
-    if (c.innerText.includes(type)) c.classList.add("selected");
+    if (c.getAttribute("onclick") === `selectExam('${type}')`) c.classList.add("selected");
   });
 
   // Clear UI containers
@@ -425,10 +425,14 @@ function renderAnswerPanel(data) {
   }
 
   let html = "";
-  const numericQs =
-    state.examType === "JEE"
-      ? [21, 22, 23, 24, 25, 46, 47, 48, 49, 50, 71, 72, 73, 74, 75]
-      : [];
+  let numericQs = [];
+  if (state.examType === "JEE") {
+    numericQs = [21, 22, 23, 24, 25, 46, 47, 48, 49, 50, 71, 72, 73, 74, 75];
+  } else if (state.examType === "JEE_ADV_1") {
+    numericQs = [9, 10, 11, 12, 25, 26, 27, 28, 41, 42, 43, 44];
+  } else if (state.examType === "JEE_ADV_2") {
+    numericQs = [10, 11, 12, 13, 14, 15, 16, 17, 18, 28, 29, 30, 31, 32, 33, 34, 35, 36, 46, 47, 48, 49, 50, 51, 52, 53, 54];
+  }
 
   for (const [subject, questions] of Object.entries(data)) {
     const qEntries = Object.entries(questions);
@@ -456,9 +460,10 @@ function renderAnswerPanel(data) {
       } else {
         // MCQ question — show pills
         const options = ["A", "B", "C", "D"];
+        const selectedOpts = answer ? answer.split(",") : [];
         let pills = options
           .map((opt) => {
-            const selected = answer === opt ? "selected" : "";
+            const selected = selectedOpts.includes(opt) ? "selected" : "";
             return `<div class="pill ${selected}" data-subject="${subject}" data-q="${qNum}" data-opt="${opt}" onclick="selectOption(this)">${opt}</div>`;
           })
           .join("");
@@ -490,28 +495,31 @@ function selectOption(el) {
   const row = el.closest(".q-row");
   const wasSelected = el.classList.contains("selected");
 
-  // Clear all selections first
-  row.querySelectorAll(".pill").forEach((p) => p.classList.remove("selected"));
-  
-  // Remove existing status badge if any
+  // Remove existing status badge if any (like Skip/Invalid)
   const oldBadge = row.querySelector(".q-status");
   if (oldBadge) oldBadge.remove();
 
   if (wasSelected) {
-    // If it was already selected, we unmark it -> set to SKIPPED
-    if (state.currentFileIndex !== -1) {
-      state.files[state.currentFileIndex].data[subject][qNum] = "SKIPPED";
-    }
-    // Append Skip badge
-    const badge = document.createElement("span");
-    badge.className = "q-status skipped";
-    badge.innerText = "Skip";
-    row.appendChild(badge);
+    el.classList.remove("selected");
   } else {
-    // Otherwise, mark it as selected
     el.classList.add("selected");
-    if (state.currentFileIndex !== -1) {
-      state.files[state.currentFileIndex].data[subject][qNum] = opt;
+  }
+
+  // Get all currently selected pills in this row
+  const selectedPills = Array.from(row.querySelectorAll(".pill.selected"))
+    .map(p => p.dataset.opt)
+    .sort();
+
+  if (state.currentFileIndex !== -1) {
+    if (selectedPills.length === 0) {
+      state.files[state.currentFileIndex].data[subject][qNum] = "SKIPPED";
+      // Append Skip badge
+      const badge = document.createElement("span");
+      badge.className = "q-status skipped";
+      badge.innerText = "Skip";
+      row.appendChild(badge);
+    } else {
+      state.files[state.currentFileIndex].data[subject][qNum] = selectedPills.join(",");
     }
   }
 
@@ -863,65 +871,57 @@ async function downloadLeaderboardPDF() {
     let html = template;
     html = html.replace(/{{EXAM_NAME}}/g, state.examName.toUpperCase());
     html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
-    html = html.replace(
-      /{{EXAM_TYPE}}/g,
-      state.examType === "JEE" ? "JEE MAINS" : "NEET AITS",
-    );
+    let examTypeStr = "NEET AITS";
+    if (state.examType === "JEE") examTypeStr = "JEE MAINS";
+    else if (state.examType.startsWith("JEE_ADV")) examTypeStr = "JEE ADVANCED";
+
+    html = html.replace(/{{EXAM_TYPE}}/g, examTypeStr);
     html = html.replace(/{{DATE}}/g, today);
 
     let subj1 = "Physics",
       subj2 = "Chemistry",
-      subj3 = state.examType === "JEE" ? "Maths" : "Biology";
+      subj3 = "Biology";
+    
+    if (state.examType === "JEE") {
+      subj3 = "Maths";
+    } else if (state.examType.startsWith("JEE_ADV")) {
+      subj1 = "Maths";
+      subj2 = "Physics";
+      subj3 = "Chemistry";
+    }
+
     html = html.replace(/{{SUBJ1}}/g, subj1);
     html = html.replace(/{{SUBJ2}}/g, subj2);
     html = html.replace(/{{SUBJ3}}/g, subj3);
 
     let rowsHtml = "";
     state.leaderboard.forEach((student, i) => {
-      const score1 =
-        student.subjects[
-          Object.keys(student.subjects).find((k) =>
-            k.toLowerCase().includes("physics"),
-          )
-        ]?.score ?? "--";
-      const score2 =
-        student.subjects[
-          Object.keys(student.subjects).find((k) =>
-            k.toLowerCase().includes("chemistry"),
-          )
-        ]?.score ?? "--";
+      let score1, score2, score3;
+      
+      const getScore = (subStr) => student.subjects[Object.keys(student.subjects).find((k) => k.toLowerCase().includes(subStr))]?.score ?? "--";
 
-      let score3 = "--";
-      if (state.examType === "JEE") {
-        score3 =
-          student.subjects[
-            Object.keys(student.subjects).find((k) =>
-              k.toLowerCase().includes("math"),
-            )
-          ]?.score ?? "--";
+      if (state.examType.startsWith("JEE_ADV")) {
+        score1 = getScore("math");
+        score2 = getScore("physics");
+        score3 = getScore("chemistry");
       } else {
-        const bio1 =
-          student.subjects[
-            Object.keys(student.subjects).find((k) =>
-              k.toLowerCase().includes("biology i"),
-            )
-          ]?.score ?? 0;
-        const bio2 =
-          student.subjects[
-            Object.keys(student.subjects).find((k) =>
-              k.toLowerCase().includes("biology ii"),
-            )
-          ]?.score ?? 0;
-        const bioOnly =
-          student.subjects[
-            Object.keys(student.subjects).find(
-              (k) => k.toLowerCase() === "biology",
-            )
-          ]?.score;
-        score3 = bioOnly !== undefined ? bioOnly : bio1 + bio2;
+        score1 = getScore("physics");
+        score2 = getScore("chemistry");
+        
+        if (state.examType === "JEE") {
+          score3 = getScore("math");
+        } else {
+          const bio1 = getScore("biology i");
+          const bio2 = getScore("biology ii");
+          const bioOnly = getScore("biology");
+          score3 = bioOnly !== "--" ? bioOnly : (bio1 !== "--" ? bio1 : 0) + (bio2 !== "--" ? bio2 : 0);
+        }
       }
 
-      const maxScore = state.examType === "JEE" ? 300 : 720;
+      let maxScore = 720;
+      if (state.examType === "JEE") maxScore = 300;
+      else if (state.examType.startsWith("JEE_ADV")) maxScore = 216; // 54 questions * 4
+
       const pct = ((student.totalScore / maxScore) * 100).toFixed(1) + "%";
 
       rowsHtml += `<tr>
