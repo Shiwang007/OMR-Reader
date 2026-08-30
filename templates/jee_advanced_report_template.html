@@ -36,16 +36,22 @@
             display: flex;
             justify-content: center;
             width: 100%;
+            height: 297mm;
+            max-height: 297mm;
+            overflow: hidden;
+            box-sizing: border-box;
         }
 
         .theme-scorecard .report-paper {
             background: white;
             width: 210mm;
-            min-height: 296mm;
-            padding: 10mm;
+            height: 297mm;
+            max-height: 297mm;
+            padding: 8mm 10mm;
             position: relative;
             z-index: 1;
-            overflow: visible;
+            overflow: hidden;
+            box-sizing: border-box;
         }
 
         .theme-scorecard .watermark {
@@ -63,13 +69,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 5px;
         }
 
         .theme-scorecard .student-info h1 {
             margin: 0;
             font-size: 20px;
-            color: var(--primary);
+            color: var(--slate-800);
+            font-weight: 700;
+            letter-spacing: -0.5px;
         }
 
         .theme-scorecard .stats-summary {
@@ -89,88 +96,96 @@
 
         .theme-scorecard .stat-lbl {
             font-size: 10px;
-            text-transform: uppercase;
             color: #64748b;
-            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .theme-scorecard .divider {
             height: 1px;
             background: var(--slate-200);
-            margin: 5px 0;
+            margin: 10px 0;
         }
 
         .theme-scorecard .subject-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 4mm;
+            gap: 10px;
         }
 
         .theme-scorecard .subject-col {
             border: 1px solid var(--slate-200);
-            border-radius: 6px;
+            border-radius: 8px;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
         }
 
         .theme-scorecard .subject-title {
             background: var(--slate-50);
-            padding: 4px;
-            text-align: center;
+            padding: 6px 12px;
+            font-size: 11px;
             font-weight: 700;
-            font-size: 13px;
-            border-bottom: 1px solid var(--slate-200);
+            text-align: center;
             color: var(--primary);
+            border-bottom: 1px solid var(--slate-200);
+            letter-spacing: 0.5px;
         }
 
         .theme-scorecard .table-flex {
-            padding: 5px;
+            flex-grow: 1;
         }
 
         .theme-scorecard table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 11px;
+            font-size: 10px;
         }
 
         .theme-scorecard th {
-            text-align: left;
+            background: #fff;
             color: #64748b;
-            padding: 4px;
+            font-weight: 600;
+            padding: 3px 2px;
             border-bottom: 1px solid var(--slate-200);
+            font-size: 9px;
         }
 
         .theme-scorecard td {
-            padding: 1.5px 2px;
+            padding: 2.5px 2px;
             border-bottom: 1px dotted #e2e8f0;
         }
 
         .theme-scorecard .q-num {
             font-weight: 600;
             color: #94a3b8;
-            width: 25px;
+            width: 22px;
         }
 
         .theme-scorecard .ans-cell {
             text-align: center;
             font-weight: 700;
-            width: 30px;
+            padding: 2.5px 1px;
         }
 
         .theme-scorecard .status-dot {
             display: inline-block;
-            width: 17px;
-            height: 17px;
-            line-height: 17px;
-            border-radius: 50%;
+            min-width: 16px;
+            height: 16px;
+            line-height: 16px;
+            border-radius: 8px;
+            padding: 0 4px;
             text-align: center;
-            color: white;
-            font-size: 9px;
+            color: white !important;
+            font-size: 8px;
+            white-space: nowrap;
+            box-sizing: border-box;
         }
 
         .theme-scorecard .correct { background-color: var(--success); }
+        .theme-scorecard .partial { background-color: #f59e0b; }
         .theme-scorecard .wrong { background-color: var(--danger); }
-        .theme-scorecard .skipped { background-color: var(--slate-200); color: #64748b; }
+        .theme-scorecard .skipped { background-color: var(--slate-200); color: #64748b !important; }
         .theme-scorecard .invalid { background-color: #000; }
 
         .theme-scorecard .subject-footer {
@@ -184,8 +199,8 @@
         }
 
         @media print {
-            .theme-scorecard { background: white; padding: 0; }
-            .theme-scorecard .report-paper { box-shadow: none; border: none; width: 100%; }
+            .theme-scorecard { background: white; padding: 0; height: 297mm; max-height: 297mm; overflow: hidden; page-break-inside: avoid; }
+            .theme-scorecard .report-paper { box-shadow: none; border: none; width: 100%; height: 297mm; max-height: 297mm; overflow: hidden; page-break-inside: avoid; }
         }
     </style>
 </head>
@@ -224,20 +239,6 @@
         <div class="divider"></div>
 
         <div class="subject-grid">
-            <!-- Subject Column Mathematics -->
-            <div class="subject-col">
-                <div class="subject-title">MATHEMATICS</div>
-                <div class="table-flex">
-                    <table>
-                        <thead><tr><th>Q.</th><th>M</th><th>C</th></tr></thead>
-                        <tbody>{{MATHEMATICS_ROWS}}</tbody>
-                    </table>
-                </div>
-                <div class="subject-footer">
-                    C: {{MATHEMATICS_RIGHT}} &nbsp; W: {{MATHEMATICS_WRONG}} &nbsp; S: {{MATHEMATICS_SCORE}}/100
-                </div>
-            </div>
-
             <!-- Subject Column Physics -->
             <div class="subject-col">
                 <div class="subject-title">PHYSICS</div>
@@ -248,7 +249,7 @@
                     </table>
                 </div>
                 <div class="subject-footer">
-                    C: {{PHYSICS_RIGHT}} &nbsp; W: {{PHYSICS_WRONG}} &nbsp; S: {{PHYSICS_SCORE}}/100
+                    C: {{PHYSICS_RIGHT}} &nbsp; W: {{PHYSICS_WRONG}} &nbsp; S: {{PHYSICS_SCORE}}/60
                 </div>
             </div>
 
@@ -262,7 +263,21 @@
                     </table>
                 </div>
                 <div class="subject-footer">
-                    C: {{CHEMISTRY_RIGHT}} &nbsp; W: {{CHEMISTRY_WRONG}} &nbsp; S: {{CHEMISTRY_SCORE}}/100
+                    C: {{CHEMISTRY_RIGHT}} &nbsp; W: {{CHEMISTRY_WRONG}} &nbsp; S: {{CHEMISTRY_SCORE}}/60
+                </div>
+            </div>
+
+            <!-- Subject Column Mathematics -->
+            <div class="subject-col">
+                <div class="subject-title">MATHEMATICS</div>
+                <div class="table-flex">
+                    <table>
+                        <thead><tr><th>Q.</th><th>M</th><th>C</th></tr></thead>
+                        <tbody>{{MATHEMATICS_ROWS}}</tbody>
+                    </table>
+                </div>
+                <div class="subject-footer">
+                    C: {{MATHEMATICS_RIGHT}} &nbsp; W: {{MATHEMATICS_WRONG}} &nbsp; S: {{MATHEMATICS_SCORE}}/60
                 </div>
             </div>
         </div>

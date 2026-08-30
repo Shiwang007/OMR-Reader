@@ -42,7 +42,10 @@ for d in [JEE_DIR, NEET_DIR, JEE_ADV_1_DIR, JEE_ADV_2_DIR]:
 jee_engine = JEEOMREngine()
 neet_engine = NEETOMREngine()
 jee_adv_1_engine = JEEAdvancedOMREngine(os.path.join(ENGINE_DIR, "templates", "jee_advanced_template.json"))
-jee_adv_2_engine = Img4Processor(os.path.join(ENGINE_DIR, "output", "img4_template.json"))
+adv2_template_path = os.path.join(ENGINE_DIR, "templates", "jee_advanced_template_img4.json")
+if not os.path.exists(adv2_template_path):
+    adv2_template_path = os.path.join(ENGINE_DIR, "output", "img4_template.json")
+jee_adv_2_engine = Img4Processor(adv2_template_path)
 
 # Store engine defaults — UI offsets are added on top
 JEE_DEFAULTS = {"x": jee_engine.X_SHIFT, "y": jee_engine.Y_SHIFT}
@@ -85,21 +88,34 @@ async def upload_files(exam_type: str = Form(...), files: List[UploadFile] = Fil
             data, viz_img = neet_engine.process_sheet(file_path)
         elif exam_type == "JEE_ADV_1":
             if hasattr(jee_adv_1_engine, 'read'):
-                data, viz_img = jee_adv_1_engine.read(file_path)
+                raw_data, viz_img = jee_adv_1_engine.read(file_path)
             else:
-                data, _, viz_img = jee_adv_1_engine.process_omr(file_path)
-            if "subjects" in data:
-                # Remove 'Q' prefix from keys to match frontend expectations
-                data = {subj: {k.replace('Q',''): v for k, v in q_map.items()} for subj, q_map in data["subjects"].items()}
+                raw_res, _, viz_img = jee_adv_1_engine.process_omr(file_path)
+                raw_data = raw_res.get("questions", raw_res)
+            
+            data = {"Physics": {}, "Chemistry": {}, "Mathematics": {}}
+            for q_num, ans in raw_data.items():
+                try:
+                    q_int = int(str(q_num).replace('Q', ''))
+                except:
+                    continue
+                clean_q = str(q_int)
+                if 1 <= q_int <= 16: data["Physics"][clean_q] = ans
+                elif 17 <= q_int <= 32: data["Chemistry"][clean_q] = ans
+                elif 33 <= q_int <= 48: data["Mathematics"][clean_q] = ans
+
         elif exam_type == "JEE_ADV_2":
             raw_data, viz_img = jee_adv_2_engine.read(file_path)
-            # Group into subjects
-            data = {"Mathematics": {}, "Physics": {}, "Chemistry": {}}
+            data = {"Physics": {}, "Chemistry": {}, "Mathematics": {}}
             for q_num, ans in raw_data.items():
-                q_int = int(q_num)
-                if 1 <= q_int <= 18: data["Mathematics"][q_num] = ans
-                elif 19 <= q_int <= 36: data["Physics"][q_num] = ans
-                else: data["Chemistry"][q_num] = ans
+                try:
+                    q_int = int(str(q_num).replace('Q', ''))
+                except:
+                    continue
+                clean_q = str(q_int)
+                if 1 <= q_int <= 18: data["Physics"][clean_q] = ans
+                elif 19 <= q_int <= 36: data["Chemistry"][clean_q] = ans
+                elif 37 <= q_int <= 54: data["Mathematics"][clean_q] = ans
             
         img_base64 = ""
         if viz_img is not None:
@@ -141,19 +157,33 @@ async def process_omr(
     elif exam_type == "JEE_ADV_1":
         # Advanced engines don't use UI offsets yet, pass them in the future if added
         if hasattr(jee_adv_1_engine, 'read'):
-            data, viz_img = jee_adv_1_engine.read(file_path)
+            raw_data, viz_img = jee_adv_1_engine.read(file_path)
         else:
-            data, _, viz_img = jee_adv_1_engine.process_omr(file_path)
-        if "subjects" in data:
-            data = {subj: {k.replace('Q',''): v for k, v in q_map.items()} for subj, q_map in data["subjects"].items()}
+            raw_res, _, viz_img = jee_adv_1_engine.process_omr(file_path)
+            raw_data = raw_res.get("questions", raw_res)
+        data = {"Physics": {}, "Chemistry": {}, "Mathematics": {}}
+        for q_num, ans in raw_data.items():
+            try:
+                q_int = int(str(q_num).replace('Q', ''))
+            except:
+                continue
+            clean_q = str(q_int)
+            if 1 <= q_int <= 16: data["Physics"][clean_q] = ans
+            elif 17 <= q_int <= 32: data["Chemistry"][clean_q] = ans
+            elif 33 <= q_int <= 48: data["Mathematics"][clean_q] = ans
+
     elif exam_type == "JEE_ADV_2":
         raw_data, viz_img = jee_adv_2_engine.read(file_path)
-        data = {"Mathematics": {}, "Physics": {}, "Chemistry": {}}
+        data = {"Physics": {}, "Chemistry": {}, "Mathematics": {}}
         for q_num, ans in raw_data.items():
-            q_int = int(q_num)
-            if 1 <= q_int <= 18: data["Mathematics"][q_num] = ans
-            elif 19 <= q_int <= 36: data["Physics"][q_num] = ans
-            else: data["Chemistry"][q_num] = ans
+            try:
+                q_int = int(str(q_num).replace('Q', ''))
+            except:
+                continue
+            clean_q = str(q_int)
+            if 1 <= q_int <= 18: data["Physics"][clean_q] = ans
+            elif 19 <= q_int <= 36: data["Chemistry"][clean_q] = ans
+            elif 37 <= q_int <= 54: data["Mathematics"][clean_q] = ans
 
     img_base64 = ""
     if viz_img is not None:
@@ -186,7 +216,9 @@ async def get_topper_template():
 
 @app.get("/template/{exam_type}")
 async def get_template(exam_type: str):
-    if exam_type.upper() in ["JEE", "JEE_ADV_1", "JEE_ADV_2"]:
+    if exam_type.upper().startswith("JEE_ADV"):
+        path = os.path.join(ENGINE_DIR, "templates", "jee_advanced_report_template.html")
+    elif exam_type.upper() == "JEE":
         path = os.path.join(ENGINE_DIR, "templates", "jee_report_template.html")
     else:
         path = os.path.join(ENGINE_DIR, "templates", "omr_report_template.html")
@@ -237,6 +269,200 @@ async def generate_pdf(request: dict, background_tasks: BackgroundTasks):
     )
 
 @app.post("/generate")
+def score_question(exam_type, q_num_raw, student_ans_raw, correct_ans_raw):
+    """
+    Scores a single question based on exam_type and question specifications.
+    Returns (points_earned, status) where status is 'correct', 'partial', 'wrong', or 'skipped'.
+    """
+    if isinstance(correct_ans_raw, list):
+        correct_parts = []
+        for item in correct_ans_raw:
+            correct_parts.extend([p.strip().upper() for p in str(item).split(",") if p.strip()])
+    else:
+        correct_parts = [p.strip().upper() for p in str(correct_ans_raw).split(",") if p.strip()]
+
+    is_grace = "*" in correct_parts
+    ans_str = str(student_ans_raw).strip().upper()
+    is_skipped = ans_str in ("SKIPPED", "", "—", "-")
+    is_invalid = ans_str == "INVALID"
+
+    if exam_type == "JEE_ADV_1":
+        try:
+            q_int = int(q_num_raw)
+        except:
+            q_int = 1
+        rel_q = ((q_int - 1) % 16) + 1
+
+        # Section 1: Single Correct MCQ (Rel Q1-4) -> +3 / -1 / 0
+        if 1 <= rel_q <= 4:
+            if is_grace:
+                return 3, "correct"
+            if is_skipped:
+                return 0, "skipped"
+            if is_invalid or "," in ans_str:
+                return -1, "wrong"
+            if ans_str in correct_parts:
+                return 3, "correct"
+            return -1, "wrong"
+
+        # Section 2: Multi-Correct MCQ (Rel Q5-8) -> +4 / (+3, +2, +1) / -1 / 0
+        elif 5 <= rel_q <= 8:
+            if is_grace:
+                return 4, "correct"
+            if is_skipped:
+                return 0, "skipped"
+            if is_invalid:
+                return -1, "wrong"
+            student_opts = set([p.strip().upper() for p in ans_str.split(",") if p.strip()])
+            correct_opts = set([p for p in correct_parts if p != "*"])
+
+            if not student_opts.issubset(correct_opts):
+                return -1, "wrong"
+            if student_opts == correct_opts:
+                return 4, "correct"
+
+            num_selected = len(student_opts)
+            num_correct = len(correct_opts)
+            if num_selected == 3 and num_correct == 4:
+                return 3, "partial"
+            elif num_selected == 2 and num_correct >= 3:
+                return 2, "partial"
+            elif num_selected == 1 and num_correct >= 2:
+                return 1, "partial"
+            else:
+                return 1, "partial"
+
+        # Section 3: Numerical Value (Rel Q9-12) -> +4 / 0 (no negative)
+        elif 9 <= rel_q <= 12:
+            if is_grace:
+                return 4, "correct"
+            if is_skipped:
+                return 0, "skipped"
+            if is_invalid:
+                return 0, "wrong"
+            matched = False
+            for c in correct_parts:
+                try:
+                    if abs(float(ans_str) - float(c)) < 1e-4:
+                        matched = True
+                        break
+                except:
+                    if ans_str == c:
+                        matched = True
+                        break
+            return (4, "correct") if matched else (0, "wrong")
+
+        # Section 4: Matching List MCQ (Rel Q13-16) -> +4 / -1 / 0
+        elif 13 <= rel_q <= 16:
+            if is_grace:
+                return 4, "correct"
+            if is_skipped:
+                return 0, "skipped"
+            if is_invalid or "," in ans_str:
+                return -1, "wrong"
+            if ans_str in correct_parts:
+                return 4, "correct"
+            return -1, "wrong"
+
+    elif exam_type == "JEE_ADV_2":
+        try:
+            q_int = int(q_num_raw)
+        except:
+            q_int = 1
+        rel_q = ((q_int - 1) % 18) + 1
+
+        # Section 1: Single Correct MCQ (Rel Q1-4) -> +3 / -1 / 0
+        if 1 <= rel_q <= 4:
+            if is_grace:
+                return 3, "correct"
+            if is_skipped:
+                return 0, "skipped"
+            if is_invalid or "," in ans_str:
+                return -1, "wrong"
+            if ans_str in correct_parts:
+                return 3, "correct"
+            return -1, "wrong"
+
+        # Section 2: Multi-Correct MCQ (Rel Q5-9) -> +4 / (+3, +2, +1) / -1 / 0
+        elif 5 <= rel_q <= 9:
+            if is_grace:
+                return 4, "correct"
+            if is_skipped:
+                return 0, "skipped"
+            if is_invalid:
+                return -1, "wrong"
+            student_opts = set([p.strip().upper() for p in ans_str.split(",") if p.strip()])
+            correct_opts = set([p for p in correct_parts if p != "*"])
+
+            if not student_opts.issubset(correct_opts):
+                return -1, "wrong"
+            if student_opts == correct_opts:
+                return 4, "correct"
+
+            num_selected = len(student_opts)
+            num_correct = len(correct_opts)
+            if num_selected == 3 and num_correct == 4:
+                return 3, "partial"
+            elif num_selected == 2 and num_correct >= 3:
+                return 2, "partial"
+            elif num_selected == 1 and num_correct >= 2:
+                return 1, "partial"
+            else:
+                return 1, "partial"
+
+        # Section 3: Numerical (Rel Q10-14) -> +4 / 0 (no negative)
+        elif 10 <= rel_q <= 14:
+            if is_grace:
+                return 4, "correct"
+            if is_skipped:
+                return 0, "skipped"
+            if is_invalid:
+                return 0, "wrong"
+            matched = False
+            for c in correct_parts:
+                try:
+                    if abs(float(ans_str) - float(c)) < 1e-4:
+                        matched = True
+                        break
+                except:
+                    if ans_str == c:
+                        matched = True
+                        break
+            return (4, "correct") if matched else (0, "wrong")
+
+        # Section 4: Numerical Stem (Rel Q15-18) -> +2 / 0 (no negative)
+        elif 15 <= rel_q <= 18:
+            if is_grace:
+                return 2, "correct"
+            if is_skipped:
+                return 0, "skipped"
+            if is_invalid or "," in ans_str:
+                return 0, "wrong"
+            matched = False
+            for c in correct_parts:
+                try:
+                    if abs(float(ans_str) - float(c)) < 1e-4:
+                        matched = True
+                        break
+                except:
+                    if ans_str == c:
+                        matched = True
+                        break
+            return (2, "correct") if matched else (0, "wrong")
+
+    # Default Standard Scoring (JEE Mains / NEET): +4 / -1 / 0
+    if is_grace:
+        return 4, "correct"
+    if is_skipped:
+        return 0, "skipped"
+    if is_invalid or "," in ans_str:
+        return -1, "wrong"
+    if ans_str in correct_parts:
+        return 4, "correct"
+    return -1, "wrong"
+
+
+@app.post("/generate")
 async def generate_results(request: dict):
     answer_key = request.get("answer_key", {})
     students = request.get("students", [])
@@ -254,38 +480,28 @@ async def generate_results(request: dict):
             correct = 0
             incorrect = 0
             skipped = 0
+            subj_score = 0
             key_section = answer_key.get(subject, {})
             
             for q_num, answer in questions.items():
                 correct_ans = key_section.get(q_num, "")
+                pts, status = score_question(exam_type, q_num, answer, correct_ans)
                 
-                valid_answers = []
-                if isinstance(correct_ans, list):
-                    for item in correct_ans:
-                        parts = [p.strip().upper() for p in str(item).split(",")]
-                        valid_answers.extend(parts)
-                else:
-                    valid_answers = [p.strip().upper() for p in str(correct_ans).split(",")]
-                
-                is_grace = "*" in valid_answers
-                
-                if is_grace:
+                if status in ("correct", "partial"):
                     correct += 1
-                elif answer == "SKIPPED" or answer == "" or answer == "INVALID":
-                    skipped += 1
-                elif str(answer).strip().upper() in valid_answers:
-                    correct += 1
-                else:
+                elif status == "wrong":
                     incorrect += 1
+                else:
+                    skipped += 1
+                subj_score += pts
             
-            score = (correct * 4) - (incorrect * 1)
             subject_scores[subject] = {
-                "score": score,
+                "score": subj_score,
                 "correct": correct,
                 "incorrect": incorrect,
                 "skipped": skipped
             }
-            total_score += score
+            total_score += subj_score
         
         results.append({
             "name": name,

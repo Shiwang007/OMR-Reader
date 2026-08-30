@@ -20,11 +20,27 @@ Layout (Image 4 - JEE Advanced with Numerical):
 import cv2
 import numpy as np
 import json
+import os
+import sys
 
 # ─────────────────────────────────────────────
 # STEP 1: IDENTICAL detection to analyze_img4.py / measured_all_bubbles_img4.jpg
 # ─────────────────────────────────────────────
-img = cv2.imread(r"f:\Medjeex\Medjeex-OMR-Engine\output\canonical_warped_img4.jpg")
+img_path = r"f:\Medjeex\Medjeex-OMR-Engine\output\canonical_warped_img4.jpg"
+if not os.path.exists(img_path):
+    raw_path = r"f:\Medjeex\Medjeex-OMR-Engine\Advance omr 2\Image (4).jpg"
+    raw_img = cv2.imread(raw_path)
+    if raw_img is None:
+        raise FileNotFoundError(f"Cannot find {raw_path}")
+    
+    sys.path.insert(0, os.path.dirname(__file__))
+    from jee_advanced_processor_img4 import Img4Processor
+    p = Img4Processor.__new__(Img4Processor)
+    img = p._align(raw_img)
+    os.makedirs(r"f:\Medjeex\Medjeex-OMR-Engine\output", exist_ok=True)
+    cv2.imwrite(img_path, img)
+else:
+    img = cv2.imread(img_path)
 gray_w = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 blurred_w = cv2.GaussianBlur(gray_w, (5, 5), 0)
 _, thresh_w = cv2.threshold(blurred_w, 150, 255, cv2.THRESH_BINARY_INV)
@@ -298,7 +314,13 @@ for d in [maths_mcq, maths_num, phys_mcq, phys_num, chem_mcq, chem_num]:
     all_questions.update(d)
 
 output = {"roll_number": roll_grid, "questions": all_questions}
+os.makedirs(r"f:\Medjeex\Medjeex-OMR-Engine\output", exist_ok=True)
+os.makedirs(r"f:\Medjeex\Medjeex-OMR-Engine\templates", exist_ok=True)
+
 with open(r"f:\Medjeex\Medjeex-OMR-Engine\output\img4_template.json", "w") as f:
+    json.dump(output, f, indent=4)
+
+with open(r"f:\Medjeex\Medjeex-OMR-Engine\templates\jee_advanced_template_img4.json", "w") as f:
     json.dump(output, f, indent=4)
 
 found = sorted(all_questions.keys(), key=int)

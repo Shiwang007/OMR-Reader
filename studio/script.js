@@ -345,14 +345,53 @@ function renderFileList() {
     const item = document.createElement("div");
     item.className = `file-item ${idx === state.currentFileIndex ? "active" : ""}`;
     item.onclick = () => selectFile(idx);
-    item.innerHTML = `<div class="file-info">
-            <i data-lucide="${file.processed ? "check-circle-2" : "file-image"}" class="${file.processed ? "text-success" : ""}"></i>
-            <span>${file.displayName || file.name}</span>
-        </div>`;
+    item.innerHTML = `
+      <div class="file-info">
+        <i data-lucide="${file.processed ? "check-circle-2" : "file-image"}" class="${file.processed ? "text-success" : ""}"></i>
+        <span title="${file.displayName || file.name}">${file.displayName || file.name}</span>
+      </div>
+      <button class="btn-remove-file" title="Remove file" onclick="event.stopPropagation(); removeFile(${idx});">
+        <i data-lucide="trash-2"></i>
+      </button>
+    `;
     list.appendChild(item);
   });
   document.getElementById("file-count").innerText = state.files.length;
   lucide.createIcons();
+}
+
+function removeFile(idx) {
+  if (idx < 0 || idx >= state.files.length) return;
+  const removedName = state.files[idx].displayName || state.files[idx].name;
+  state.files.splice(idx, 1);
+  
+  if (state.files.length === 0) {
+    state.currentFileIndex = -1;
+    const nameInput = document.getElementById("student-name-input");
+    if (nameInput) nameInput.value = "";
+    const omrPreview = document.getElementById("omr-preview");
+    if (omrPreview) omrPreview.src = "";
+    const jsonPlaceholder = document.getElementById("json-placeholder");
+    if (jsonPlaceholder) jsonPlaceholder.style.display = "none";
+    const panel = document.getElementById("answer-panel");
+    if (panel) panel.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--text-muted);">No files uploaded.</div>';
+    renderFileList();
+    updateNavigation();
+    setStatus(`Removed ${removedName}`);
+    return;
+  }
+  
+  if (state.currentFileIndex >= state.files.length) {
+    state.currentFileIndex = state.files.length - 1;
+  } else if (idx === state.currentFileIndex) {
+    state.currentFileIndex = Math.min(state.currentFileIndex, state.files.length - 1);
+  } else if (idx < state.currentFileIndex) {
+    state.currentFileIndex--;
+  }
+
+  selectFile(state.currentFileIndex);
+  updateNavigation();
+  setStatus(`Removed ${removedName}`);
 }
 
 function selectFile(idx) {
@@ -510,13 +549,30 @@ function selectOption(el) {
     .map(p => p.dataset.opt)
     .sort();
 
+  const qInt = parseInt(qNum, 10);
+  let isSingleCorrect = false;
+  if (state.examType === "JEE" || state.examType === "NEET") {
+    isSingleCorrect = true;
+  } else if (state.examType === "JEE_ADV_1") {
+    const relQ = ((qInt - 1) % 16) + 1;
+    if ((relQ >= 1 && relQ <= 4) || (relQ >= 13 && relQ <= 16)) isSingleCorrect = true;
+  } else if (state.examType === "JEE_ADV_2") {
+    const relQ = ((qInt - 1) % 18) + 1;
+    if (relQ >= 1 && relQ <= 4) isSingleCorrect = true;
+  }
+
   if (state.currentFileIndex !== -1) {
     if (selectedPills.length === 0) {
       state.files[state.currentFileIndex].data[subject][qNum] = "SKIPPED";
-      // Append Skip badge
       const badge = document.createElement("span");
       badge.className = "q-status skipped";
       badge.innerText = "Skip";
+      row.appendChild(badge);
+    } else if (selectedPills.length > 1 && isSingleCorrect) {
+      state.files[state.currentFileIndex].data[subject][qNum] = "INVALID";
+      const badge = document.createElement("span");
+      badge.className = "q-status invalid";
+      badge.innerText = "Invalid";
       row.appendChild(badge);
     } else {
       state.files[state.currentFileIndex].data[subject][qNum] = selectedPills.join(",");
@@ -708,6 +764,186 @@ function clearAnswerKey() {
   updateNavigation();
 }
 
+function scoreQuestionJS(examType, qNumRaw, studentAnsRaw, correctAnsRaw) {
+  let correctParts = [];
+  if (Array.isArray(correctAnsRaw)) {
+    correctAnsRaw.forEach((item) => {
+      const parts = String(item)
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+      correctParts = correctParts.concat(parts);
+    });
+  } else {
+    correctParts = String(correctAnsRaw || "")
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+  }
+
+  const isGrace = correctParts.includes("*");
+  const ansStr = String(studentAnsRaw || "").trim().toUpperCase();
+  const isSkipped = !ansStr || ansStr === "SKIPPED" || ansStr === "—" || ansStr === "-";
+  const isInvalid = ansStr === "INVALID";
+
+  if (examType === "JEE_ADV_1") {
+    const qInt = parseInt(qNumRaw, 10) || 1;
+    const relQ = ((qInt - 1) % 16) + 1;
+
+    // Section 1: Single Correct MCQ (Rel Q1-4) -> +3 / -1 / 0
+    if (relQ >= 1 && relQ <= 4) {
+      if (isGrace) return { pts: 3, status: "correct" };
+      if (isSkipped) return { pts: 0, status: "skipped" };
+      if (isInvalid || ansStr.includes(",")) return { pts: -1, status: "wrong" };
+      if (correctParts.includes(ansStr)) return { pts: 3, status: "correct" };
+      return { pts: -1, status: "wrong" };
+    }
+
+    // Section 2: Multi-Correct MCQ (Rel Q5-8) -> +4 / (+3, +2, +1) / -1 / 0
+    else if (relQ >= 5 && relQ <= 8) {
+      if (isGrace) return { pts: 4, status: "correct" };
+      if (isSkipped) return { pts: 0, status: "skipped" };
+      if (isInvalid) return { pts: -1, status: "wrong" };
+
+      const studentOpts = ansStr.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+      const correctOpts = correctParts.filter((p) => p !== "*");
+
+      const isSubset = studentOpts.every((opt) => correctOpts.includes(opt));
+      if (!isSubset) return { pts: -1, status: "wrong" };
+
+      if (
+        studentOpts.length === correctOpts.length &&
+        correctOpts.every((opt) => studentOpts.includes(opt))
+      ) {
+        return { pts: 4, status: "correct" };
+      }
+
+      const numSelected = studentOpts.length;
+      const numCorrect = correctOpts.length;
+      if (numSelected === 3 && numCorrect === 4) {
+        return { pts: 3, status: "partial" };
+      } else if (numSelected === 2 && numCorrect >= 3) {
+        return { pts: 2, status: "partial" };
+      } else if (numSelected === 1 && numCorrect >= 2) {
+        return { pts: 1, status: "partial" };
+      } else {
+        return { pts: 1, status: "partial" };
+      }
+    }
+
+    // Section 3: Numerical Value (Rel Q9-12) -> +4 / 0 (no negative)
+    else if (relQ >= 9 && relQ <= 12) {
+      if (isGrace) return { pts: 4, status: "correct" };
+      if (isSkipped) return { pts: 0, status: "skipped" };
+      if (isInvalid) return { pts: 0, status: "wrong" };
+      const matched = correctParts.some((c) => {
+        const sVal = parseFloat(ansStr);
+        const cVal = parseFloat(c);
+        if (!isNaN(sVal) && !isNaN(cVal)) {
+          return Math.abs(sVal - cVal) < 0.0001;
+        }
+        return ansStr === c;
+      });
+      return matched ? { pts: 4, status: "correct" } : { pts: 0, status: "wrong" };
+    }
+
+    // Section 4: Matching List MCQ (Rel Q13-16) -> +4 / -1 / 0
+    else if (relQ >= 13 && relQ <= 16) {
+      if (isGrace) return { pts: 4, status: "correct" };
+      if (isSkipped) return { pts: 0, status: "skipped" };
+      if (isInvalid || ansStr.includes(",")) return { pts: -1, status: "wrong" };
+      if (correctParts.includes(ansStr)) return { pts: 4, status: "correct" };
+      return { pts: -1, status: "wrong" };
+    }
+  } else if (examType === "JEE_ADV_2") {
+    const qInt = parseInt(qNumRaw, 10) || 1;
+    const relQ = ((qInt - 1) % 18) + 1;
+
+    // Section 1: Single Correct MCQ (Rel Q1-4) -> +3 / -1 / 0
+    if (relQ >= 1 && relQ <= 4) {
+      if (isGrace) return { pts: 3, status: "correct" };
+      if (isSkipped) return { pts: 0, status: "skipped" };
+      if (isInvalid || ansStr.includes(",")) return { pts: -1, status: "wrong" };
+      if (correctParts.includes(ansStr)) return { pts: 3, status: "correct" };
+      return { pts: -1, status: "wrong" };
+    }
+
+    // Section 2: Multi-Correct MCQ (Rel Q5-9) -> +4 / (+3, +2, +1) / -1 / 0
+    else if (relQ >= 5 && relQ <= 9) {
+      if (isGrace) return { pts: 4, status: "correct" };
+      if (isSkipped) return { pts: 0, status: "skipped" };
+      if (isInvalid) return { pts: -1, status: "wrong" };
+
+      const studentOpts = ansStr.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+      const correctOpts = correctParts.filter((p) => p !== "*");
+
+      // Check if student selected ANY option not in correct options -> -1
+      const isSubset = studentOpts.every((opt) => correctOpts.includes(opt));
+      if (!isSubset) return { pts: -1, status: "wrong" };
+
+      // Exact match
+      if (
+        studentOpts.length === correctOpts.length &&
+        correctOpts.every((opt) => studentOpts.includes(opt))
+      ) {
+        return { pts: 4, status: "correct" };
+      }
+
+      // Partial marks (only correct options selected)
+      const numSelected = studentOpts.length;
+      const numCorrect = correctOpts.length;
+      if (numSelected === 3 && numCorrect === 4) {
+        return { pts: 3, status: "partial" };
+      } else if (numSelected === 2 && numCorrect >= 3) {
+        return { pts: 2, status: "partial" };
+      } else if (numSelected === 1 && numCorrect >= 2) {
+        return { pts: 1, status: "partial" };
+      } else {
+        return { pts: 1, status: "partial" };
+      }
+    }
+
+    // Section 3: Numerical Value (Rel Q10-14) -> +4 / 0 (no negative)
+    else if (relQ >= 10 && relQ <= 14) {
+      if (isGrace) return { pts: 4, status: "correct" };
+      if (isSkipped) return { pts: 0, status: "skipped" };
+      if (isInvalid) return { pts: 0, status: "wrong" };
+      const matched = correctParts.some((c) => {
+        const sVal = parseFloat(ansStr);
+        const cVal = parseFloat(c);
+        if (!isNaN(sVal) && !isNaN(cVal)) {
+          return Math.abs(sVal - cVal) < 0.0001;
+        }
+        return ansStr === c;
+      });
+      return matched ? { pts: 4, status: "correct" } : { pts: 0, status: "wrong" };
+    }
+
+    // Section 4: Numerical Stem (Rel Q15-18) -> +2 / 0 (no negative)
+    else if (relQ >= 15 && relQ <= 18) {
+      if (isGrace) return { pts: 2, status: "correct" };
+      if (isSkipped) return { pts: 0, status: "skipped" };
+      if (isInvalid || ansStr.includes(",")) return { pts: 0, status: "wrong" };
+      const matched = correctParts.some((c) => {
+        const sVal = parseFloat(ansStr);
+        const cVal = parseFloat(c);
+        if (!isNaN(sVal) && !isNaN(cVal)) {
+          return Math.abs(sVal - cVal) < 0.0001;
+        }
+        return ansStr === c;
+      });
+      return matched ? { pts: 2, status: "correct" } : { pts: 0, status: "wrong" };
+    }
+  }
+
+  // Default Standard Scoring (JEE Mains / NEET): +4 / -1 / 0
+  if (isGrace) return { pts: 4, status: "correct" };
+  if (isSkipped) return { pts: 0, status: "skipped" };
+  if (isInvalid || ansStr.includes(",")) return { pts: -1, status: "wrong" };
+  if (correctParts.includes(ansStr)) return { pts: 4, status: "correct" };
+  return { pts: -1, status: "wrong" };
+}
+
 // Step 4: Calculate on frontend + generate from templates
 async function calculateFinal() {
   const examName = document.getElementById("exam-name").value;
@@ -743,7 +979,8 @@ async function calculateFinal() {
     for (const [subject, questions] of Object.entries(file.data)) {
       let correct = 0,
         wrong = 0,
-        skipped = 0;
+        skipped = 0,
+        subjScore = 0;
       // Case-insensitive subject matching
       const keySection =
         state.answerKey[subject] ||
@@ -756,42 +993,22 @@ async function calculateFinal() {
 
       for (const [qNum, answer] of Object.entries(questions)) {
         const correctAns = keySection[qNum] || "";
-        
-        let validAnswers = [];
-        if (Array.isArray(correctAns)) {
-          correctAns.forEach((item) => {
-            const parts = String(item)
-              .split(",")
-              .map((s) => s.trim().toUpperCase());
-            validAnswers = validAnswers.concat(parts);
-          });
-        } else {
-          validAnswers = String(correctAns)
-            .split(",")
-            .map((s) => s.trim().toUpperCase());
-        }
+        const { pts, status } = scoreQuestionJS(state.examType, qNum, answer, correctAns);
 
-        const isGraceQuestion = validAnswers.includes("*");
-
-        if (isGraceQuestion) {
+        if (status === "correct" || status === "partial") {
           correct++;
-        } else if (answer === "SKIPPED" || answer === "" || answer === "INVALID") {
-          skipped++;
+        } else if (status === "wrong") {
+          wrong++;
         } else {
-          const studentAnsStr = String(answer).trim().toUpperCase();
-          if (validAnswers.includes(studentAnsStr)) {
-            correct++;
-          } else {
-            wrong++;
-          }
+          skipped++;
         }
+        subjScore += pts;
       }
-      const score = correct * 4 - wrong * 1;
-      subjectStats[subject] = { correct, wrong, skipped, score };
+      subjectStats[subject] = { correct, wrong, skipped, score: subjScore };
       totalCorrect += correct;
       totalWrong += wrong;
       totalSkipped += skipped;
-      totalScore += score;
+      totalScore += subjScore;
     }
 
     leaderboard.push({
@@ -882,12 +1099,8 @@ async function downloadLeaderboardPDF() {
       subj2 = "Chemistry",
       subj3 = "Biology";
     
-    if (state.examType === "JEE") {
+    if (state.examType === "JEE" || state.examType.startsWith("JEE_ADV")) {
       subj3 = "Maths";
-    } else if (state.examType.startsWith("JEE_ADV")) {
-      subj1 = "Maths";
-      subj2 = "Physics";
-      subj3 = "Chemistry";
     }
 
     html = html.replace(/{{SUBJ1}}/g, subj1);
@@ -900,27 +1113,21 @@ async function downloadLeaderboardPDF() {
       
       const getScore = (subStr) => student.subjects[Object.keys(student.subjects).find((k) => k.toLowerCase().includes(subStr))]?.score ?? "--";
 
-      if (state.examType.startsWith("JEE_ADV")) {
-        score1 = getScore("math");
-        score2 = getScore("physics");
-        score3 = getScore("chemistry");
+      score1 = getScore("physics");
+      score2 = getScore("chemistry");
+      
+      if (state.examType === "JEE" || state.examType.startsWith("JEE_ADV")) {
+        score3 = getScore("math");
       } else {
-        score1 = getScore("physics");
-        score2 = getScore("chemistry");
-        
-        if (state.examType === "JEE") {
-          score3 = getScore("math");
-        } else {
-          const bio1 = getScore("biology i");
-          const bio2 = getScore("biology ii");
-          const bioOnly = getScore("biology");
-          score3 = bioOnly !== "--" ? bioOnly : (bio1 !== "--" ? bio1 : 0) + (bio2 !== "--" ? bio2 : 0);
-        }
+        const bio1 = getScore("biology i");
+        const bio2 = getScore("biology ii");
+        const bioOnly = getScore("biology");
+        score3 = bioOnly !== "--" ? bioOnly : (bio1 !== "--" ? bio1 : 0) + (bio2 !== "--" ? bio2 : 0);
       }
 
       let maxScore = 720;
       if (state.examType === "JEE") maxScore = 300;
-      else if (state.examType.startsWith("JEE_ADV")) maxScore = 216; // 54 questions * 4
+      else if (state.examType.startsWith("JEE_ADV")) maxScore = 180;
 
       const pct = ((student.totalScore / maxScore) * 100).toFixed(1) + "%";
 
@@ -1031,6 +1238,9 @@ async function downloadComparisonPDF() {
 
     await generateAndDownloadPDF(allPagesContent, styles, state.examName + "_Analysis");
     setStatus("Analysis reports downloaded successfully");
+    setTimeout(() => {
+      downloadCheckedOMRsJSONZIP();
+    }, 500);
   } catch (err) {
     console.error(err);
     setStatus("Failed: " + err.message);
@@ -1084,6 +1294,9 @@ async function downloadFullReports() {
 
     await generateAndDownloadPDF(allPagesContent, styles, state.examName + "_Full_Reports");
     setStatus("Full combined reports downloaded successfully");
+    setTimeout(() => {
+      downloadCheckedOMRsJSONZIP();
+    }, 500);
   } catch (err) {
     console.error(err);
     setStatus("Failed: " + err.message);
@@ -1124,30 +1337,8 @@ function generateScorecardPage(student, template, today) {
     for (const qNum of sortedNums) {
       const answer = questions[qNum];
       const correctAns = keySection[qNum] || "";
-      let statusClass = "skipped";
-
-      let validAnswers = [];
-      if (Array.isArray(correctAns)) {
-        correctAns.forEach(item => {
-          const parts = String(item).split(",").map(s => s.trim().toUpperCase());
-          validAnswers = validAnswers.concat(parts);
-        });
-      } else {
-        validAnswers = String(correctAns).split(",").map(s => s.trim().toUpperCase());
-      }
-      const isGraceQuestion = validAnswers.includes("*");
-
-      if (isGraceQuestion) {
-        statusClass = "correct";
-      } else if (answer === "SKIPPED" || answer === "") {
-        statusClass = "skipped";
-      } else if (answer === "INVALID") {
-        statusClass = "invalid";
-      } else {
-        const studentAnsStr = String(answer).trim().toUpperCase();
-        if (validAnswers.includes(studentAnsStr)) statusClass = "correct";
-        else statusClass = "wrong";
-      }
+      const { status } = scoreQuestionJS(state.examType, qNum, answer, correctAns);
+      let statusClass = status;
 
       rowsHtml += `<tr>
                     <td class="q-num">${qNum}</td>
@@ -1164,6 +1355,21 @@ function generateScorecardPage(student, template, today) {
     html = html.replace(new RegExp(`\\{\\{${key}_SCORE\\}\\}`, "g"), stats.score);
   }
 
+  let maxScore = 720;
+  let maxSubjScore = 180;
+  if (state.examType === "JEE") {
+    maxScore = 300;
+    maxSubjScore = 100;
+  } else if (state.examType.startsWith("JEE_ADV")) {
+    maxScore = 180;
+    maxSubjScore = 60;
+  }
+
+  html = html.replace(/\/300/g, `/${maxScore}`);
+  html = html.replace(/\/100/g, `/${maxSubjScore}`);
+  html = html.replace(/\{\{MAX_SCORE\}\}/g, maxScore);
+  html = html.replace(/\{\{MAX_SUBJ_SCORE\}\}/g, maxSubjScore);
+
   html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
   html = html.replace(/\{\{EXAM_NAME\}\}/g, state.examName.toUpperCase());
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
@@ -1175,8 +1381,51 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
   const isTopper = rank === 1;
   let html = isTopper ? topperTemplate : compTemplate;
 
-  const maxScore = state.examType === "JEE" ? 300 : 720;
-  const maxSubjScore = state.examType === "JEE" ? 100 : 180;
+  let maxScore = 720;
+  let maxSubjScore = 180;
+  if (state.examType === "JEE") {
+    maxScore = 300;
+    maxSubjScore = 100;
+  } else if (state.examType.startsWith("JEE_ADV")) {
+    maxScore = 180;
+    maxSubjScore = 60;
+  }
+
+  let marksLost = 0;
+  let unattemptedPotential = 0;
+  let marksEarned = 0;
+
+  for (const [subj, questions] of Object.entries(student.data || {})) {
+    const keySection = state.answerKey[subj] ||
+      state.answerKey[Object.keys(state.answerKey).find(k => k.toLowerCase() === subj.toLowerCase())] || {};
+
+    for (const [qNum, answer] of Object.entries(questions)) {
+      const correctAns = keySection[qNum] || "";
+      const { pts, status } = scoreQuestionJS(state.examType, qNum, answer, correctAns);
+
+      if (status === "correct" || status === "partial") {
+        marksEarned += pts;
+      } else if (status === "wrong") {
+        if (pts < 0) marksLost += Math.abs(pts);
+      } else if (status === "skipped") {
+        let qMax = 4;
+        const qInt = parseInt(qNum, 10) || 1;
+        if (state.examType === "JEE_ADV_1") {
+          const relQ = ((qInt - 1) % 16) + 1;
+          if (relQ >= 1 && relQ <= 4) qMax = 3;
+          else qMax = 4;
+        } else if (state.examType === "JEE_ADV_2") {
+          const relQ = ((qInt - 1) % 18) + 1;
+          if (relQ >= 1 && relQ <= 4) qMax = 3;
+          else if (relQ >= 15 && relQ <= 18) qMax = 2;
+          else qMax = 4;
+        }
+        unattemptedPotential += qMax;
+      }
+    }
+  }
+
+  const potentialScore = student.totalScore + marksLost + unattemptedPotential;
 
   html = html.replace(/{{STUDENT_NAME}}/g, student.name);
   html = html.replace(/{{DATE}}/g, today);
@@ -1203,17 +1452,25 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
     }
   }
 
+  const orderedSubjs = Object.keys(student.subjects).sort((a, b) => {
+    const order = ["physics", "chemistry", "math", "biology"];
+    const ai = order.findIndex(o => a.toLowerCase().includes(o));
+    const bi = order.findIndex(o => b.toLowerCase().includes(o));
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
   if (isTopper) {
     html = html.replace(/{{ACCURACY}}/g, totalAccuracy);
-    html = html.replace(/{{MARKS_LOST}}/g, student.totalWrong);
-    html = html.replace(/{{POTENTIAL_SCORE}}/g, student.totalScore + student.totalWrong);
-    html = html.replace(/{{MARKS_EARNED}}/g, student.totalCorrect * 4);
-    html = html.replace(/{{UNATTEMPTED_POTENTIAL}}/g, student.totalSkipped * 4);
+    html = html.replace(/{{MARKS_LOST}}/g, marksLost);
+    html = html.replace(/{{POTENTIAL_SCORE}}/g, potentialScore + "/" + maxScore);
+    html = html.replace(/{{MARKS_EARNED}}/g, marksEarned);
+    html = html.replace(/{{UNATTEMPTED_POTENTIAL}}/g, unattemptedPotential);
     html = html.split('{{WEAKEST_SUBJECT}}').join(weakestSubj);
     html = html.split('{{WEAKEST_ACCURACY}}').join(Math.round(minAcc));
 
     let rowsHtml = "";
-    for (const [subj, stats] of Object.entries(student.subjects)) {
+    for (const subj of orderedSubjs) {
+      const stats = student.subjects[subj] || { correct: 0, wrong: 0, skipped: 0, score: 0 };
       const attempted = stats.correct + stats.wrong;
       const acc = attempted > 0 ? Math.round((stats.correct / attempted) * 100) : 0;
       const qInSubj = Object.keys(state.answerKey[subj] || {}).length;
@@ -1231,21 +1488,22 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
     html = html.replace(/{{ROWS}}/g, rowsHtml);
   } else {
     html = html.replace(/{{RANK}}/g, rank);
-    html = html.replace(/{{CLASS_AVG}}/g, Math.round(state.leaderboard.reduce((a, b) => a + b.totalScore, 0) / state.leaderboard.length));
-    html = html.replace(/{{TOPPER_SCORE}}/g, topper.totalScore);
+    html = html.replace(/{{CLASS_AVG}}/g, Math.round(state.leaderboard.reduce((a, b) => a + b.totalScore, 0) / state.leaderboard.length) + "/" + maxScore);
+    html = html.replace(/{{TOPPER_SCORE}}/g, topper.totalScore + "/" + maxScore);
     html = html.replace(/{{SCORE_GAP}}/g, topper.totalScore - student.totalScore);
     html = html.replace(/{{ACCURACY}}/g, totalAccuracy);
     html = html.replace(/{{ATTEMPT_RATE}}/g, totalAttemptRate);
-    html = html.replace(/{{POTENTIAL_SCORE}}/g, student.totalScore + student.totalWrong);
-    html = html.replace(/{{MARKS_EARNED}}/g, student.totalCorrect * 4);
-    html = html.replace(/{{MARKS_LOST}}/g, student.totalWrong);
+    html = html.replace(/{{POTENTIAL_SCORE}}/g, potentialScore + "/" + maxScore);
+    html = html.replace(/{{MARKS_EARNED}}/g, marksEarned);
+    html = html.replace(/{{MARKS_LOST}}/g, marksLost);
     html = html.split('{{WEAKEST_SUBJECT}}').join(weakestSubj);
     html = html.split('{{WEAKEST_SCORE}}').join(student.subjects[weakestSubj]?.score || 0);
     html = html.split('{{TOPPER_WEAKEST_SCORE}}').join(topper.subjects[weakestSubj]?.score || 0);
     html = html.split('{{MARKS_LOST_WEAKEST}}').join(marksLostWeakest);
 
     let rowsHtml = "";
-    for (const [subj, stats] of Object.entries(student.subjects)) {
+    for (const subj of orderedSubjs) {
+      const stats = student.subjects[subj] || { correct: 0, wrong: 0, skipped: 0, score: 0 };
       const topStats = topper.subjects[subj] || { score: 0 };
       const avg = classStats[subj]?.avg || 0;
       const attempted = stats.correct + stats.wrong;

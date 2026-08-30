@@ -15,30 +15,39 @@ class JEEAdvancedOMREngine:
     def align_image(self, img):
         """Align input image to standard canonical size 2480x3442 using top-left, top-right, bottom-left, bottom-right black corner marker blocks."""
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img.copy()
+        h, w = gray.shape[:2]
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         _, thresh = cv2.threshold(blurred, 80, 255, cv2.THRESH_BINARY_INV)
 
         cnts, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         corners = []
+        # Margin from edges (corner markers are within 300px from corners)
+        x_margin = max(150, int(w * 0.15))
+        y_margin = max(150, int(h * 0.15))
+
         for c in cnts:
             x, y, cw, ch = cv2.boundingRect(c)
             aspect_ratio = cw / float(ch)
             area = cv2.contourArea(c)
             
-            if 30 < cw < 110 and 30 < ch < 110 and 0.7 < aspect_ratio < 1.5 and area > 900:
-                corners.append((x + cw / 2.0, y + ch / 2.0))
+            # Corner markers in Image 3 are solid black squares ~21x21 px (area ~370..400)
+            if 14 < cw < 50 and 14 < ch < 50 and 0.70 < aspect_ratio < 1.35 and 180 < area < 1500:
+                cx, cy = x + cw / 2.0, y + ch / 2.0
+                # Must be located in outer corner zones
+                if (cx < x_margin or cx > w - x_margin) and (cy < y_margin or cy > h - y_margin):
+                    corners.append((cx, cy))
 
         if len(corners) < 4:
+            # Fallback: simple resize if fiducials aren't detected
             resized = cv2.resize(img, (self.canonical_width, self.canonical_height))
             return resized, None
 
-        corners = sorted(corners, key=lambda p: p[1])
-        top_two = sorted(corners[:2], key=lambda p: p[0])
-        bottom_two = sorted(corners[2:], key=lambda p: p[0])
-
-        tl, tr = top_two[0], top_two[1]
-        bl, br = bottom_two[0], bottom_two[1]
+        # Sort into 4 distinct quadrants: Top-Left, Top-Right, Bottom-Left, Bottom-Right
+        tl = min(corners, key=lambda p: p[0]**2 + p[1]**2)
+        tr = min(corners, key=lambda p: (p[0] - w)**2 + p[1]**2)
+        bl = min(corners, key=lambda p: p[0]**2 + (p[1] - h)**2)
+        br = min(corners, key=lambda p: (p[0] - w)**2 + (p[1] - h)**2)
 
         pts_src = np.array([tl, tr, br, bl], dtype="float32")
         
@@ -139,7 +148,14 @@ class JEEAdvancedOMREngine:
                         else:
                             cv2.circle(vis_img, (int(bx), int(by)), 12, (0, 180, 0), 1)
                             
-                    res_val = ",".join(marked_opts) if marked_opts else "SKIPPED"
+                    rel_q = ((q_num - 1) % 16) + 1
+                    if len(marked_opts) == 0:
+                        res_val = "SKIPPED"
+                    elif (1 <= rel_q <= 4) or (13 <= rel_q <= 16):
+                        res_val = marked_opts[0] if len(marked_opts) == 1 else "INVALID"
+                    else:
+                        res_val = ",".join(marked_opts)
+
                     results["questions"][q_str] = res_val
                     results["subjects"][subject][f"Q{q_str}"] = res_val
 

@@ -16,7 +16,7 @@ class Img4Processor:
         with open(template_path) as f:
             self.template = json.load(f)
 
-    def read(self, img_path, align=False, fill_thresh=0.60):
+    def read(self, img_path, align=True, fill_thresh=0.60):
         img = cv2.imread(img_path)
         if img is None:
             raise FileNotFoundError(f"Cannot read: {img_path}")
@@ -25,6 +25,7 @@ class Img4Processor:
             img = self._align(img)
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        h, w = gray.shape[:2]
         binary = cv2.adaptiveThreshold(
             gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY_INV, 51, 15
@@ -33,12 +34,23 @@ class Img4Processor:
         vis = img.copy()
         results = {}
 
+        # Pre-compute small circular mask kernel once (19x19)
+        r_kernel = 9
+        mask_small = np.zeros((2 * r_kernel + 1, 2 * r_kernel + 1), dtype=np.uint8)
+        cv2.circle(mask_small, (r_kernel, r_kernel), r_kernel, 255, -1)
+        total_mask_pixels = float(cv2.countNonZero(mask_small))
+
         def bubble_filled(x, y, r=9):
-            mask = np.zeros(binary.shape, np.uint8)
-            cv2.circle(mask, (int(x), int(y)), r, 255, -1)
-            total = cv2.countNonZero(mask)
-            dark  = cv2.countNonZero(cv2.bitwise_and(binary, binary, mask=mask))
-            ratio = dark / max(total, 1)
+            ix, iy = int(x), int(y)
+            x1, x2 = ix - r, ix + r + 1
+            y1, y2 = iy - r, iy + r + 1
+            if x1 < 0 or y1 < 0 or x2 > w or y2 > h:
+                return False, 0.0
+            roi = binary[y1:y2, x1:x2]
+            if roi.shape != mask_small.shape:
+                return False, 0.0
+            dark = cv2.countNonZero(cv2.bitwise_and(roi, roi, mask=mask_small))
+            ratio = dark / total_mask_pixels
             return ratio > fill_thresh, ratio
 
         for q_num, q_data in self.template["questions"].items():
@@ -57,8 +69,11 @@ class Img4Processor:
                         marked.append(b["opt"])
                         cv2.circle(vis, (int(b["x"]), int(b["y"])), 6, (0, 200, 0), -1)
                 
+                rel_q = ((int(q_num) - 1) % 18) + 1
                 if len(marked) == 0:
                     results[q_num] = "SKIPPED"
+                elif 1 <= rel_q <= 4:
+                    results[q_num] = marked[0] if len(marked) == 1 else "INVALID"
                 else:
                     results[q_num] = ",".join(marked)
 
@@ -92,26 +107,30 @@ class Img4Processor:
         return results, vis
 
     def _align(self, img):
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img.copy()
+        h, w = gray.shape[:2]
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         _, thresh = cv2.threshold(blurred, 80, 255, cv2.THRESH_BINARY_INV)
         cnts, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         corners = []
-        h, w = img.shape[:2]
         for c in cnts:
             x, y, cw, ch = cv2.boundingRect(c)
             ar = cw / float(ch)
             area = cv2.contourArea(c)
-            if 10 < cw < 110 and 10 < ch < 110 and 0.7 < ar < 1.3 and area > 200:
+            if 10 < cw < 110 and 10 < ch < 110 and 0.65 < ar < 1.45 and area > 180:
                 cx, cy = x + cw/2.0, y + ch/2.0
-                if (cx < 200 or cx > w - 200) and (cy < 200 or cy > h - 200):
+                if (cx < 300 or cx > w - 300) and (cy < 450 or cy > h - 450):
                     corners.append((cx, cy))
-        if len(corners) != 4:
-            raise ValueError(f"Expected 4 corner markers, found {len(corners)}")
-        corners = sorted(corners, key=lambda p: p[1])
-        tl, tr = sorted(corners[:2], key=lambda p: p[0])
-        bl, br = sorted(corners[-2:], key=lambda p: p[0])
+        
         W, H = 2480, 3442
+        if len(corners) < 4:
+            return cv2.resize(img, (W, H))
+
+        tl = min(corners, key=lambda p: p[0]**2 + p[1]**2)
+        tr = min(corners, key=lambda p: (p[0] - w)**2 + p[1]**2)
+        bl = min(corners, key=lambda p: p[0]**2 + (p[1] - h)**2)
+        br = min(corners, key=lambda p: (p[0] - w)**2 + (p[1] - h)**2)
+
         M = cv2.getPerspectiveTransform(
             np.array([tl, tr, br, bl], dtype="float32"),
             np.array([[66,211],[2365,220],[2357,3205],[57,3194]], dtype="float32")

@@ -155,13 +155,41 @@ body {
 
 .file-list { flex: 1; overflow-y: auto; padding: 0.25rem 0.5rem; }
 .file-item {
-    display: flex; align-items: center; gap: 0.6rem;
-    padding: 0.6rem 0.75rem; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    padding: 0.5rem 0.75rem; border-radius: 8px; cursor: pointer;
     transition: background 0.15s; font-size: 0.82rem;
 }
 .file-item:hover { background: #f8fafc; }
 .file-item.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
-.file-info { display: flex; align-items: center; gap: 0.5rem; }
+.file-info { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; }
+.file-info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.btn-remove-file {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.4;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+.file-item:hover .btn-remove-file {
+    opacity: 0.8;
+}
+.btn-remove-file:hover {
+    color: var(--danger) !important;
+    background: rgba(239, 68, 68, 0.12);
+    opacity: 1 !important;
+}
+.btn-remove-file svg {
+    width: 13px;
+    height: 13px;
+}
 .text-success { color: var(--success); }
 
 /* -- Col 2: Preview -- */
