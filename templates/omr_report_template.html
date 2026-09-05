@@ -130,14 +130,15 @@
         .theme-scorecard table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
             font-size: 8.5px;
         }
 
         .theme-scorecard th {
-            text-align: left;
             color: #64748b;
-            padding: 2px;
+            padding: 3px 2px;
             border-bottom: 1px solid var(--slate-200);
+            font-size: 8.5px;
         }
 
         .theme-scorecard td {
@@ -145,16 +146,18 @@
             border-bottom: 1px dotted #f1f5f9;
         }
 
-        .theme-scorecard .q-num {
+        .theme-scorecard th.q-num, .theme-scorecard td.q-num {
             font-weight: 600;
             color: #94a3b8;
-            width: 25px;
+            text-align: left;
+            width: 28%;
+            padding-left: 4px;
         }
 
-        .theme-scorecard .ans-cell {
+        .theme-scorecard th.ans-cell, .theme-scorecard td.ans-cell {
             text-align: center;
             font-weight: 700;
-            width: 30px;
+            width: 36%;
         }
 
         .theme-scorecard .status-dot {
@@ -199,7 +202,7 @@
             </div>
             <div class="stats-summary">
                 <div class="stat-item">
-                    <span class="stat-val" style="color: var(--primary);">{{TOTAL_SCORE}}/720</span>
+                    <span class="stat-val" style="color: var(--primary);">{{TOTAL_SCORE}}/{{TOTAL_MAX_SCORE}}</span>
                     <span class="stat-lbl">Score</span>
                 </div>
                 <div class="stat-item">
@@ -224,61 +227,7 @@
         <div class="divider"></div>
 
         <div class="subject-grid">
-            <!-- Subject Column Physics -->
-            <div class="subject-col">
-                <div class="subject-title">PHYSICS</div>
-                <div class="table-flex">
-                    <table>
-                        <thead><tr><th>Q.</th><th>M</th><th>C</th></tr></thead>
-                        <tbody>{{PHYSICS_ROWS}}</tbody>
-                    </table>
-                </div>
-                <div class="subject-footer">
-                    C:{{PHYSICS_RIGHT}} W:{{PHYSICS_WRONG}} S:{{PHYSICS_SCORE}}/180
-                </div>
-            </div>
-
-            <!-- Subject Column Chemistry -->
-            <div class="subject-col">
-                <div class="subject-title">CHEMISTRY</div>
-                <div class="table-flex">
-                    <table>
-                        <thead><tr><th>Q.</th><th>M</th><th>C</th></tr></thead>
-                        <tbody>{{CHEMISTRY_ROWS}}</tbody>
-                    </table>
-                </div>
-                <div class="subject-footer">
-                    C:{{CHEMISTRY_RIGHT}} W:{{CHEMISTRY_WRONG}} S:{{CHEMISTRY_SCORE}}/180
-                </div>
-            </div>
-
-            <!-- Subject Column Biology I -->
-            <div class="subject-col">
-                <div class="subject-title">BIOLOGY I</div>
-                <div class="table-flex">
-                    <table>
-                        <thead><tr><th>Q.</th><th>M</th><th>C</th></tr></thead>
-                        <tbody>{{BIOLOGY_I_ROWS}}</tbody>
-                    </table>
-                </div>
-                <div class="subject-footer">
-                    C:{{BIOLOGY_I_RIGHT}} W:{{BIOLOGY_I_WRONG}} S:{{BIOLOGY_I_SCORE}}/180
-                </div>
-            </div>
-
-            <!-- Subject Column Biology II -->
-            <div class="subject-col">
-                <div class="subject-title">BIOLOGY II</div>
-                <div class="table-flex">
-                    <table>
-                        <thead><tr><th>Q.</th><th>M</th><th>C</th></tr></thead>
-                        <tbody>{{BIOLOGY_II_ROWS}}</tbody>
-                    </table>
-                </div>
-                <div class="subject-footer">
-                    C:{{BIOLOGY_II_RIGHT}} W:{{BIOLOGY_II_WRONG}} S:{{BIOLOGY_II_SCORE}}/180
-                </div>
-            </div>
+            {{SUBJECT_GRID}}
         </div>
     </div>
 </body>

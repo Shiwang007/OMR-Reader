@@ -22,6 +22,7 @@ sys.path.append(ENGINE_DIR)
 try:
     from src.jee_processor import JEEOMREngine
     from src.neet_processor import NEETOMREngine
+    from src.neet_dropper_processor import NEETDropperOMREngine
     from src.jee_advanced_processor import JEEAdvancedOMREngine
     from src.jee_advanced_processor_img4 import Img4Processor
 except ImportError as e:
@@ -34,13 +35,15 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # Directories
 JEE_DIR = os.path.join(ENGINE_DIR, "omr_jee")
 NEET_DIR = os.path.join(ENGINE_DIR, "omr_neet")
+NEW_NEET_DIR = os.path.join(ENGINE_DIR, "omr_new_neet")
 JEE_ADV_1_DIR = os.path.join(ENGINE_DIR, "omr_jee_adv_1")
 JEE_ADV_2_DIR = os.path.join(ENGINE_DIR, "omr_jee_adv_2")
-for d in [JEE_DIR, NEET_DIR, JEE_ADV_1_DIR, JEE_ADV_2_DIR]:
+for d in [JEE_DIR, NEET_DIR, NEW_NEET_DIR, JEE_ADV_1_DIR, JEE_ADV_2_DIR]:
     if not os.path.exists(d): os.makedirs(d)
 
 jee_engine = JEEOMREngine()
 neet_engine = NEETOMREngine()
+new_neet_engine = NEETDropperOMREngine()
 jee_adv_1_engine = JEEAdvancedOMREngine(os.path.join(ENGINE_DIR, "templates", "jee_advanced_template.json"))
 adv2_template_path = os.path.join(ENGINE_DIR, "templates", "jee_advanced_template_img4.json")
 if not os.path.exists(adv2_template_path):
@@ -50,11 +53,12 @@ jee_adv_2_engine = Img4Processor(adv2_template_path)
 # Store engine defaults — UI offsets are added on top
 JEE_DEFAULTS = {"x": jee_engine.X_SHIFT, "y": jee_engine.Y_SHIFT}
 NEET_DEFAULTS = {"x": neet_engine.X_SHIFT, "y": neet_engine.Y_SHIFT}
+NEW_NEET_DEFAULTS = {"x": new_neet_engine.X_SHIFT, "y": new_neet_engine.Y_SHIFT}
 
 @app.post("/clear-session")
 async def clear_session():
     import shutil
-    for d in [JEE_DIR, NEET_DIR, JEE_ADV_1_DIR, JEE_ADV_2_DIR]:
+    for d in [JEE_DIR, NEET_DIR, NEW_NEET_DIR, JEE_ADV_1_DIR, JEE_ADV_2_DIR]:
         if os.path.exists(d):
             for filename in os.listdir(d):
                 file_path = os.path.join(d, filename)
@@ -71,6 +75,7 @@ async def clear_session():
 async def upload_files(exam_type: str = Form(...), files: List[UploadFile] = File(...)):
     if exam_type == "JEE": target_dir = JEE_DIR
     elif exam_type == "NEET": target_dir = NEET_DIR
+    elif exam_type == "NEW_NEET": target_dir = NEW_NEET_DIR
     elif exam_type == "JEE_ADV_1": target_dir = JEE_ADV_1_DIR
     elif exam_type == "JEE_ADV_2": target_dir = JEE_ADV_2_DIR
     else: target_dir = NEET_DIR
@@ -86,6 +91,8 @@ async def upload_files(exam_type: str = Form(...), files: List[UploadFile] = Fil
             data, viz_img = jee_engine.process_page1(file_path)
         elif exam_type == "NEET":
             data, viz_img = neet_engine.process_sheet(file_path)
+        elif exam_type == "NEW_NEET":
+            data, viz_img = new_neet_engine.process_sheet(file_path)
         elif exam_type == "JEE_ADV_1":
             if hasattr(jee_adv_1_engine, 'read'):
                 raw_data, viz_img = jee_adv_1_engine.read(file_path)
@@ -139,12 +146,15 @@ async def process_omr(
 ):
     if exam_type == "JEE": target_dir = JEE_DIR
     elif exam_type == "NEET": target_dir = NEET_DIR
+    elif exam_type == "NEW_NEET": target_dir = NEW_NEET_DIR
     elif exam_type == "JEE_ADV_1": target_dir = JEE_ADV_1_DIR
     elif exam_type == "JEE_ADV_2": target_dir = JEE_ADV_2_DIR
     else: target_dir = NEET_DIR
     
     file_path = os.path.abspath(os.path.join(target_dir, filename))
-    defaults = JEE_DEFAULTS if exam_type == "JEE" else NEET_DEFAULTS
+    if exam_type == "JEE": defaults = JEE_DEFAULTS
+    elif exam_type == "NEW_NEET": defaults = NEW_NEET_DEFAULTS
+    else: defaults = NEET_DEFAULTS
     
     if exam_type == "JEE":
         jee_engine.X_SHIFT = defaults["x"] + x_shift
@@ -154,6 +164,10 @@ async def process_omr(
         neet_engine.X_SHIFT = defaults["x"] + x_shift
         neet_engine.Y_SHIFT = defaults["y"] + y_shift
         data, viz_img = neet_engine.process_sheet(file_path)
+    elif exam_type == "NEW_NEET":
+        new_neet_engine.X_SHIFT = defaults["x"] + x_shift
+        new_neet_engine.Y_SHIFT = defaults["y"] + y_shift
+        data, viz_img = new_neet_engine.process_sheet(file_path)
     elif exam_type == "JEE_ADV_1":
         # Advanced engines don't use UI offsets yet, pass them in the future if added
         if hasattr(jee_adv_1_engine, 'read'):
@@ -527,6 +541,9 @@ async def generate_results(request: dict):
 
 app.mount("/omr_jee", StaticFiles(directory=JEE_DIR), name="jee_images")
 app.mount("/omr_neet", StaticFiles(directory=NEET_DIR), name="neet_images")
+app.mount("/omr_new_neet", StaticFiles(directory=NEW_NEET_DIR), name="new_neet_images")
+app.mount("/omr_jee_adv_1", StaticFiles(directory=JEE_ADV_1_DIR), name="jee_adv_1_images")
+app.mount("/omr_jee_adv_2", StaticFiles(directory=JEE_ADV_2_DIR), name="jee_adv_2_images")
 app.mount("/assets", StaticFiles(directory=os.path.join(ENGINE_DIR, "assets")), name="assets")
 app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
 

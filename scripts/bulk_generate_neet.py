@@ -169,7 +169,8 @@ def generate_reports():
             "total_score": total_score,
             "physics": subj_stats["Physics"]["score"],
             "chemistry": subj_stats["Chemistry"]["score"],
-            "biology": subj_stats["Biology I"]["score"] + subj_stats["Biology II"]["score"],
+            "bio1": subj_stats["Biology I"]["score"],
+            "bio2": subj_stats["Biology II"]["score"],
             "attempted": total_correct + total_wrong,
             "correct": total_correct,
             "wrong": total_wrong
@@ -191,7 +192,8 @@ def generate_reports():
             <td class="pct-col">{pct}</td>
             <td class="subj-col">{s['physics']}</td>
             <td class="subj-col">{s['chemistry']}</td>
-            <td class="subj-col">{s['biology']}</td>
+            <td class="subj-col">{s['bio1']}</td>
+            <td class="subj-col">{s['bio2']}</td>
             <td class="stat-col">{s['attempted']}</td>
             <td class="stat-col">{s['correct']}</td>
             <td class="stat-col">{s['wrong']}</td>
@@ -202,9 +204,8 @@ def generate_reports():
     lb_html = lb_html.replace("{{EXAM_NAME}}", "AKAAR NEET")
     lb_html = lb_html.replace("{{EXAM_TYPE}}", "NEET AITS")
     lb_html = lb_html.replace("{{DATE}}", today)
-    lb_html = lb_html.replace("{{SUBJ1}}", "Physics")
-    lb_html = lb_html.replace("{{SUBJ2}}", "Chemistry")
-    lb_html = lb_html.replace("{{SUBJ3}}", "Biology")
+    subj_headers = '<th class="subj-col">Physics</th><th class="subj-col">Chemistry</th><th class="subj-col">Biology I</th><th class="subj-col">Biology II</th>'
+    lb_html = lb_html.replace("{{SUBJECT_HEADERS}}", subj_headers)
     lb_html = lb_html.replace("{{ROWS}}", rows_html)
     
     leaderboard_pdf_path = os.path.join(OUTPUT_DIR, "AKAAR_NEET_Leaderboard.pdf")

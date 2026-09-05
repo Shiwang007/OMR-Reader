@@ -5,6 +5,8 @@ const state = {
   files: [],
   currentFileIndex: -1,
   answerKey: {},
+  subjectMaxMarks: {},
+  totalMaxScore: 0,
   zoom: {
     scale: 0.25,
     panX: 0,
@@ -129,6 +131,7 @@ function goToStep(step) {
   document.querySelector(`.step[data-step="${step}"]`).classList.add("active");
   updateNavigation();
   if (step === 3) renderAnswerGrid();
+  if (step === 4) renderSubjectMarksConfig();
   
   // Hide export buttons and leaderboard container if moving away from step 4
   if (step < 4) {
@@ -174,6 +177,8 @@ async function selectExam(type) {
   state.files = [];
   state.currentFileIndex = -1;
   state.answerKey = {};
+  state.subjectMaxMarks = {};
+  state.totalMaxScore = 0;
   state.leaderboard = [];
   state.zoom = {
     scale: 0.25,
@@ -551,7 +556,7 @@ function selectOption(el) {
 
   const qInt = parseInt(qNum, 10);
   let isSingleCorrect = false;
-  if (state.examType === "JEE" || state.examType === "NEET") {
+  if (state.examType === "JEE" || state.examType === "NEET" || state.examType === "NEW_NEET") {
     isSingleCorrect = true;
   } else if (state.examType === "JEE_ADV_1") {
     const relQ = ((qInt - 1) % 16) + 1;
@@ -944,6 +949,101 @@ function scoreQuestionJS(examType, qNumRaw, studentAnsRaw, correctAnsRaw) {
   return { pts: -1, status: "wrong" };
 }
 
+// Subject Max Marks Configuration
+function getSubjectListForExam() {
+  let subjs = [];
+  if (state.answerKey && Object.keys(state.answerKey).length > 0) {
+    subjs = Object.keys(state.answerKey);
+  } else if (state.files && state.files.length > 0 && state.files[0].data) {
+    subjs = Object.keys(state.files[0].data);
+  } else if (state.examType === "JEE") {
+    subjs = ["Physics", "Chemistry", "Mathematics"];
+  } else if (state.examType.startsWith("JEE_ADV")) {
+    subjs = ["Physics", "Chemistry", "Mathematics"];
+  } else {
+    subjs = ["Physics", "Chemistry", "Biology I", "Biology II"];
+  }
+
+  return subjs.sort((a, b) => {
+    const getIndex = (s) => {
+      const sLow = s.toLowerCase();
+      if (sLow.includes("physic")) return 1;
+      if (sLow.includes("chem")) return 2;
+      if (sLow.includes("math")) return 3;
+      if (sLow.includes("bio") && sLow.includes("i") && !sLow.includes("ii")) return 4;
+      if (sLow.includes("botan")) return 4;
+      if (sLow.includes("bio") && sLow.includes("ii")) return 5;
+      if (sLow.includes("zool")) return 5;
+      if (sLow.includes("bio")) return 4;
+      return 10;
+    };
+    return getIndex(a) - getIndex(b);
+  });
+}
+
+function getDefaultSubjMark(subjName) {
+  const keySec =
+    state.answerKey[subjName] ||
+    state.answerKey[
+      Object.keys(state.answerKey).find(
+        (k) => k.toLowerCase() === subjName.toLowerCase()
+      )
+    ];
+  if (keySec && Object.keys(keySec).length > 0) {
+    return Object.keys(keySec).length * 4;
+  }
+  if (state.examType === "JEE") return 100;
+  if (state.examType.startsWith("JEE_ADV")) return 60;
+  return 180;
+}
+
+function renderSubjectMarksConfig() {
+  const container = document.getElementById("subject-marks-grid");
+  if (!container) return;
+
+  const subjects = getSubjectListForExam();
+  if (!state.subjectMaxMarks) state.subjectMaxMarks = {};
+
+  container.innerHTML = "";
+  subjects.forEach((subj) => {
+    if (state.subjectMaxMarks[subj] === undefined) {
+      state.subjectMaxMarks[subj] = getDefaultSubjMark(subj);
+    }
+    const val = state.subjectMaxMarks[subj];
+    const item = document.createElement("div");
+    item.className = "subj-mark-item";
+    item.innerHTML = `
+      <label class="subj-mark-lbl" title="${subj}">${subj}</label>
+      <div class="subj-mark-input-wrap">
+        <input type="number" class="subj-mark-input" value="${val}" min="0" max="2000"
+               oninput="updateSubjectMaxMark('${subj}', this.value)" />
+        <span class="subj-mark-suffix">M</span>
+      </div>
+    `;
+    container.appendChild(item);
+  });
+
+  updateTotalMaxMarks();
+  if (window.lucide) lucide.createIcons();
+}
+
+function updateSubjectMaxMark(subj, val) {
+  const num = parseInt(val, 10);
+  if (!state.subjectMaxMarks) state.subjectMaxMarks = {};
+  state.subjectMaxMarks[subj] = isNaN(num) ? 0 : num;
+  updateTotalMaxMarks();
+}
+
+function updateTotalMaxMarks() {
+  const total = Object.values(state.subjectMaxMarks || {}).reduce(
+    (acc, v) => acc + (parseInt(v, 10) || 0),
+    0
+  );
+  state.totalMaxScore = total;
+  const badge = document.getElementById("config-total-marks");
+  if (badge) badge.innerText = total;
+}
+
 // Step 4: Calculate on frontend + generate from templates
 async function calculateFinal() {
   const examName = document.getElementById("exam-name").value;
@@ -960,12 +1060,16 @@ async function calculateFinal() {
     return;
   }
 
+  updateTotalMaxMarks();
+
   const btn = document.querySelector("#step-4 .btn-primary");
   if (btn) {
     btn.innerHTML = '<div class="spinner small"></div> Calculating...';
     btn.disabled = true;
   }
   setStatus("Calculating scores...");
+
+  const activeSubjects = getSubjectListForExam();
 
   // Score every student on the frontend
   const leaderboard = [];
@@ -976,7 +1080,7 @@ async function calculateFinal() {
       totalScore = 0;
     const subjectStats = {};
 
-    for (const [subject, questions] of Object.entries(file.data)) {
+    for (const subject of activeSubjects) {
       let correct = 0,
         wrong = 0,
         skipped = 0,
@@ -991,7 +1095,22 @@ async function calculateFinal() {
         ] ||
         {};
 
-      for (const [qNum, answer] of Object.entries(questions)) {
+      const questions =
+        file.data[subject] ||
+        file.data[
+          Object.keys(file.data).find(
+            (k) => k.toLowerCase() === subject.toLowerCase(),
+          )
+        ] ||
+        {};
+
+      const qNums =
+        Object.keys(keySection).length > 0
+          ? Object.keys(keySection).sort((a, b) => parseInt(a) - parseInt(b))
+          : Object.keys(questions).sort((a, b) => parseInt(a) - parseInt(b));
+
+      for (const qNum of qNums) {
+        const answer = questions[qNum] !== undefined ? questions[qNum] : "";
         const correctAns = keySection[qNum] || "";
         const { pts, status } = scoreQuestionJS(state.examType, qNum, answer, correctAns);
 
@@ -1090,44 +1209,46 @@ async function downloadLeaderboardPDF() {
     html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
     let examTypeStr = "NEET AITS";
     if (state.examType === "JEE") examTypeStr = "JEE MAINS";
+    else if (state.examType === "NEW_NEET") examTypeStr = "NEW NEET PROCESSOR";
     else if (state.examType.startsWith("JEE_ADV")) examTypeStr = "JEE ADVANCED";
 
     html = html.replace(/{{EXAM_TYPE}}/g, examTypeStr);
     html = html.replace(/{{DATE}}/g, today);
 
-    let subj1 = "Physics",
-      subj2 = "Chemistry",
-      subj3 = "Biology";
-    
-    if (state.examType === "JEE" || state.examType.startsWith("JEE_ADV")) {
-      subj3 = "Maths";
-    }
+    const sampleSubjects = state.leaderboard[0]?.subjects || {};
+    const subjects = Object.keys(sampleSubjects).sort((a, b) => {
+      const getIndex = (s) => {
+        const sLow = s.toLowerCase();
+        if (sLow.includes("physic")) return 1;
+        if (sLow.includes("chem")) return 2;
+        if (sLow.includes("math")) return 3;
+        if (sLow.includes("bio") && sLow.includes("i") && !sLow.includes("ii")) return 4;
+        if (sLow.includes("botan")) return 4;
+        if (sLow.includes("bio") && sLow.includes("ii")) return 5;
+        if (sLow.includes("zool")) return 5;
+        if (sLow.includes("bio")) return 4;
+        return 10;
+      };
+      return getIndex(a) - getIndex(b);
+    });
 
-    html = html.replace(/{{SUBJ1}}/g, subj1);
-    html = html.replace(/{{SUBJ2}}/g, subj2);
-    html = html.replace(/{{SUBJ3}}/g, subj3);
+    const subjectHeaders = subjects.map((s) => `<th class="subj-col">${s}</th>`).join("");
+    html = html.replace(/{{SUBJECT_HEADERS}}/g, subjectHeaders);
 
     let rowsHtml = "";
     state.leaderboard.forEach((student, i) => {
-      let score1, score2, score3;
-      
-      const getScore = (subStr) => student.subjects[Object.keys(student.subjects).find((k) => k.toLowerCase().includes(subStr))]?.score ?? "--";
+      let subjCells = subjects
+        .map((s) => {
+          const score = student.subjects[s]?.score ?? "--";
+          return `<td class="subj-col">${score}</td>`;
+        })
+        .join("");
 
-      score1 = getScore("physics");
-      score2 = getScore("chemistry");
-      
-      if (state.examType === "JEE" || state.examType.startsWith("JEE_ADV")) {
-        score3 = getScore("math");
-      } else {
-        const bio1 = getScore("biology i");
-        const bio2 = getScore("biology ii");
-        const bioOnly = getScore("biology");
-        score3 = bioOnly !== "--" ? bioOnly : (bio1 !== "--" ? bio1 : 0) + (bio2 !== "--" ? bio2 : 0);
+      let maxScore = state.totalMaxScore || 720;
+      if (!state.totalMaxScore) {
+        if (state.examType === "JEE") maxScore = 300;
+        else if (state.examType.startsWith("JEE_ADV")) maxScore = 180;
       }
-
-      let maxScore = 720;
-      if (state.examType === "JEE") maxScore = 300;
-      else if (state.examType.startsWith("JEE_ADV")) maxScore = 180;
 
       const pct = ((student.totalScore / maxScore) * 100).toFixed(1) + "%";
 
@@ -1136,9 +1257,7 @@ async function downloadLeaderboardPDF() {
                 <td class="name-col">${student.name}</td>
                 <td class="score-col">${student.totalScore}</td>
                 <td class="pct-col">${pct}</td>
-                <td class="subj-col">${score1}</td>
-                <td class="subj-col">${score2}</td>
-                <td class="subj-col">${score3}</td>
+                ${subjCells}
                 <td class="stat-col">${student.attempted}</td>
                 <td class="stat-col">${student.totalCorrect}</td>
                 <td class="stat-col">${student.totalWrong}</td>
@@ -1185,6 +1304,9 @@ async function downloadScoreCards() {
 
     const styleMatch = template.match(/<style>([\s\S]*?)<\/style>/i);
     let styles = styleMatch ? styleMatch[1] : "";
+    const activeSubjects = getSubjectListForExam();
+    const gridCols = Math.max(1, activeSubjects.length);
+    styles = styles.replace(/\{\{GRID_COLS\}\}/g, gridCols);
     
     // Minimal styles for multi-page export
     styles += `
@@ -1273,6 +1395,10 @@ async function downloadFullReports() {
     const scoreStyleMatch = scoreTemplate.match(/<style>([\s\S]*?)<\/style>/i);
     const compStyleMatch = compTemplate.match(/<style>([\s\S]*?)<\/style>/i);
     let styles = (scoreStyleMatch ? scoreStyleMatch[1] : "") + (compStyleMatch ? compStyleMatch[1] : "");
+    const activeSubjects = getSubjectListForExam();
+    const gridCols = Math.max(1, activeSubjects.length);
+    styles = styles.replace(/\{\{GRID_COLS\}\}/g, gridCols);
+
     styles += `
         body { display: block !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
         .pdf-page-wrapper { 
@@ -1326,16 +1452,68 @@ function generateScorecardPage(student, template, today) {
   html = html.replace(/\{\{WRONG\}\}/g, student.totalWrong);
   html = html.replace(/\{\{UNATTEMPTED\}\}/g, student.totalSkipped);
 
-  for (const [subject, stats] of Object.entries(student.subjects)) {
-    const key = subject.toUpperCase().replace(/ /g, "_");
-    const keySection = state.answerKey[subject] || {};
-    const questions = student.data[subject] || {};
+  let maxScore = state.totalMaxScore || 720;
+  let maxSubjScore = 180;
+  if (!state.totalMaxScore) {
+    if (state.examType === "JEE") {
+      maxScore = 300;
+      maxSubjScore = 100;
+    } else if (state.examType.startsWith("JEE_ADV")) {
+      maxScore = 180;
+      maxSubjScore = 60;
+    }
+  }
+
+  // Active subjects in canonical order
+  const activeSubjects = Object.keys(student.subjects).sort((a, b) => {
+    const getIndex = (s) => {
+      const sLow = s.toLowerCase();
+      if (sLow.includes("physic")) return 1;
+      if (sLow.includes("chem")) return 2;
+      if (sLow.includes("math")) return 3;
+      if (sLow.includes("bio") && sLow.includes("i") && !sLow.includes("ii")) return 4;
+      if (sLow.includes("botan")) return 4;
+      if (sLow.includes("bio") && sLow.includes("ii")) return 5;
+      if (sLow.includes("zool")) return 5;
+      if (sLow.includes("bio")) return 4;
+      return 10;
+    };
+    return getIndex(a) - getIndex(b);
+  });
+
+  let subjectGridHtml = "";
+  for (const subject of activeSubjects) {
+    const stats = student.subjects[subject] || { correct: 0, wrong: 0, skipped: 0, score: 0 };
+    const keySection =
+      state.answerKey[subject] ||
+      state.answerKey[
+        Object.keys(state.answerKey).find(
+          (k) => k.toLowerCase() === subject.toLowerCase()
+        )
+      ] ||
+      {};
+    const questions =
+      student.data[subject] ||
+      student.data[
+        Object.keys(student.data).find(
+          (k) => k.toLowerCase() === subject.toLowerCase()
+        )
+      ] ||
+      {};
+
+    const subjMax =
+      state.subjectMaxMarks && state.subjectMaxMarks[subject] !== undefined
+        ? state.subjectMaxMarks[subject]
+        : maxSubjScore;
 
     let rowsHtml = "";
-    const sortedNums = Object.keys(questions).sort((a, b) => parseInt(a) - parseInt(b));
+    const sortedNums =
+      Object.keys(keySection).length > 0
+        ? Object.keys(keySection).sort((a, b) => parseInt(a) - parseInt(b))
+        : Object.keys(questions).sort((a, b) => parseInt(a) - parseInt(b));
 
     for (const qNum of sortedNums) {
-      const answer = questions[qNum];
+      const answer = questions[qNum] !== undefined ? questions[qNum] : "";
       const correctAns = keySection[qNum] || "";
       const { status } = scoreQuestionJS(state.examType, qNum, answer, correctAns);
       let statusClass = status;
@@ -1349,29 +1527,35 @@ function generateScorecardPage(student, template, today) {
                 </tr>`;
     }
 
-    html = html.replace(new RegExp(`\\{\\{${key}_ROWS\\}\\}`, "g"), rowsHtml);
-    html = html.replace(new RegExp(`\\{\\{${key}_RIGHT\\}\\}`, "g"), stats.correct);
-    html = html.replace(new RegExp(`\\{\\{${key}_WRONG\\}\\}`, "g"), stats.wrong);
-    html = html.replace(new RegExp(`\\{\\{${key}_SCORE\\}\\}`, "g"), stats.score);
+    subjectGridHtml += `
+      <div class="subject-col">
+          <div class="subject-title">${subject.toUpperCase()}</div>
+          <div class="table-flex">
+              <table>
+                  <thead><tr><th class="q-num">Q.</th><th class="ans-cell">M</th><th class="ans-cell">C</th></tr></thead>
+                  <tbody>${rowsHtml}</tbody>
+              </table>
+          </div>
+          <div class="subject-footer">
+              C:${stats.correct} W:${stats.wrong} S:${stats.score}/${subjMax}
+          </div>
+      </div>`;
   }
 
-  let maxScore = 720;
-  let maxSubjScore = 180;
-  if (state.examType === "JEE") {
-    maxScore = 300;
-    maxSubjScore = 100;
-  } else if (state.examType.startsWith("JEE_ADV")) {
-    maxScore = 180;
-    maxSubjScore = 60;
-  }
+  const numCols = Math.max(1, activeSubjects.length);
+  const gapSize = numCols <= 2 ? "4mm" : "2mm";
+  let maxGridWidth = "100%";
+  if (numCols === 1) maxGridWidth = "320px";
+  else if (numCols === 2) maxGridWidth = "580px";
 
-  html = html.replace(/\/300/g, `/${maxScore}`);
-  html = html.replace(/\/100/g, `/${maxSubjScore}`);
+  html = html.replace(/<div class="subject-grid"[^>]*>/g, `<div class="subject-grid" style="display: grid !important; grid-template-columns: repeat(${numCols}, 1fr) !important; gap: ${gapSize} !important; max-width: ${maxGridWidth} !important; margin: 0 auto !important;">`);
+  html = html.replace(/{{SUBJECT_GRID}}/g, subjectGridHtml);
+  html = html.replace(/{{GRID_COLS}}/g, numCols);
+  html = html.replace(/\{\{TOTAL_MAX_SCORE\}\}/g, maxScore);
   html = html.replace(/\{\{MAX_SCORE\}\}/g, maxScore);
-  html = html.replace(/\{\{MAX_SUBJ_SCORE\}\}/g, maxSubjScore);
-
   html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
   html = html.replace(/\{\{EXAM_NAME\}\}/g, state.examName.toUpperCase());
+
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
   const content = bodyMatch ? bodyMatch[1] : "";
   return `<div class="theme-scorecard">${content}</div>`;
@@ -1381,26 +1565,39 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
   const isTopper = rank === 1;
   let html = isTopper ? topperTemplate : compTemplate;
 
-  let maxScore = 720;
+  let maxScore = state.totalMaxScore || 720;
   let maxSubjScore = 180;
-  if (state.examType === "JEE") {
-    maxScore = 300;
-    maxSubjScore = 100;
-  } else if (state.examType.startsWith("JEE_ADV")) {
-    maxScore = 180;
-    maxSubjScore = 60;
+  if (!state.totalMaxScore) {
+    if (state.examType === "JEE") {
+      maxScore = 300;
+      maxSubjScore = 100;
+    } else if (state.examType.startsWith("JEE_ADV")) {
+      maxScore = 180;
+      maxSubjScore = 60;
+    }
   }
 
   let marksLost = 0;
   let unattemptedPotential = 0;
   let marksEarned = 0;
 
-  for (const [subj, questions] of Object.entries(student.data || {})) {
-    const keySection = state.answerKey[subj] ||
-      state.answerKey[Object.keys(state.answerKey).find(k => k.toLowerCase() === subj.toLowerCase())] || {};
+  const activeSubjects = getSubjectListForExam();
 
-    for (const [qNum, answer] of Object.entries(questions)) {
-      const correctAns = keySection[qNum] || "";
+  for (const subj of activeSubjects) {
+    const keySection =
+      state.answerKey[subj] ||
+      state.answerKey[
+        Object.keys(state.answerKey).find(
+          (k) => k.toLowerCase() === subj.toLowerCase()
+        )
+      ];
+    if (!keySection) continue;
+
+    const questions =
+      (student.data && (student.data[subj] || student.data[Object.keys(student.data).find(k => k.toLowerCase() === subj.toLowerCase())])) || {};
+
+    for (const [qNum, correctAns] of Object.entries(keySection)) {
+      const answer = questions[qNum] !== undefined ? questions[qNum] : "";
       const { pts, status } = scoreQuestionJS(state.examType, qNum, answer, correctAns);
 
       if (status === "correct" || status === "partial") {
@@ -1425,7 +1622,10 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
     }
   }
 
-  const potentialScore = student.totalScore + marksLost + unattemptedPotential;
+  const potentialScore = Math.min(
+    maxScore,
+    student.totalScore + marksLost + unattemptedPotential
+  );
 
   html = html.replace(/{{STUDENT_NAME}}/g, student.name);
   html = html.replace(/{{DATE}}/g, today);
@@ -1434,15 +1634,27 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
   html = html.replace(/{{LOGO_B64}}/g, state.logoB64);
   html = html.replace(/{{TOTAL_SCORE}}/g, student.totalScore + "/" + maxScore);
 
-  const totalQuestions = Object.values(state.answerKey).reduce((acc, subj) => acc + Object.keys(subj).length, 0);
-  const totalAccuracy = student.attempted > 0 ? Math.round((student.totalCorrect / student.attempted) * 100) : 0;
-  const totalAttemptRate = Math.round((student.attempted / totalQuestions) * 100);
+  const totalQuestions = Object.values(state.answerKey).reduce(
+    (acc, subj) => acc + Object.keys(subj).length,
+    0
+  );
+  const totalAccuracy =
+    student.attempted > 0
+      ? Math.round((student.totalCorrect / student.attempted) * 100)
+      : 0;
+  const totalAttemptRate =
+    totalQuestions > 0
+      ? Math.round((student.attempted / totalQuestions) * 100)
+      : 0;
+
+  const orderedSubjs = activeSubjects.filter((s) => student.subjects[s] !== undefined);
 
   let weakestSubj = "N/A";
   let minAcc = 101;
   let marksLostWeakest = 0;
 
-  for (const [subj, stats] of Object.entries(student.subjects)) {
+  for (const subj of orderedSubjs) {
+    const stats = student.subjects[subj] || { correct: 0, wrong: 0, skipped: 0, score: 0 };
     const attempted = stats.correct + stats.wrong;
     const acc = attempted > 0 ? (stats.correct / attempted) * 100 : 0;
     if (acc < minAcc && attempted > 0) {
@@ -1452,33 +1664,30 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
     }
   }
 
-  const orderedSubjs = Object.keys(student.subjects).sort((a, b) => {
-    const order = ["physics", "chemistry", "math", "biology"];
-    const ai = order.findIndex(o => a.toLowerCase().includes(o));
-    const bi = order.findIndex(o => b.toLowerCase().includes(o));
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-  });
-
   if (isTopper) {
     html = html.replace(/{{ACCURACY}}/g, totalAccuracy);
     html = html.replace(/{{MARKS_LOST}}/g, marksLost);
     html = html.replace(/{{POTENTIAL_SCORE}}/g, potentialScore + "/" + maxScore);
     html = html.replace(/{{MARKS_EARNED}}/g, marksEarned);
     html = html.replace(/{{UNATTEMPTED_POTENTIAL}}/g, unattemptedPotential);
-    html = html.split('{{WEAKEST_SUBJECT}}').join(weakestSubj);
-    html = html.split('{{WEAKEST_ACCURACY}}').join(Math.round(minAcc));
+    html = html.split("{{WEAKEST_SUBJECT}}").join(weakestSubj);
+    html = html.split("{{WEAKEST_ACCURACY}}").join(Math.round(minAcc === 101 ? 100 : minAcc));
 
     let rowsHtml = "";
     for (const subj of orderedSubjs) {
       const stats = student.subjects[subj] || { correct: 0, wrong: 0, skipped: 0, score: 0 };
+      const subjMax =
+        state.subjectMaxMarks && state.subjectMaxMarks[subj] !== undefined
+          ? state.subjectMaxMarks[subj]
+          : maxSubjScore;
       const attempted = stats.correct + stats.wrong;
       const acc = attempted > 0 ? Math.round((stats.correct / attempted) * 100) : 0;
       const qInSubj = Object.keys(state.answerKey[subj] || {}).length;
       const attRate = qInSubj > 0 ? Math.round((attempted / qInSubj) * 100) : 0;
-      
+
       rowsHtml += `<tr>
                 <td>${subj}</td>
-                <td><b>${stats.score}/${maxSubjScore}</b></td>
+                <td><b>${stats.score}/${subjMax}</b></td>
                 <td>${acc}%</td>
                 <td>${attRate}%</td>
                 <td style="color: var(--danger)">${stats.wrong}</td>
@@ -1488,7 +1697,15 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
     html = html.replace(/{{ROWS}}/g, rowsHtml);
   } else {
     html = html.replace(/{{RANK}}/g, rank);
-    html = html.replace(/{{CLASS_AVG}}/g, Math.round(state.leaderboard.reduce((a, b) => a + b.totalScore, 0) / state.leaderboard.length) + "/" + maxScore);
+    html = html.replace(
+      /{{CLASS_AVG}}/g,
+      Math.round(
+        state.leaderboard.reduce((a, b) => a + b.totalScore, 0) /
+          state.leaderboard.length
+      ) +
+        "/" +
+        maxScore
+    );
     html = html.replace(/{{TOPPER_SCORE}}/g, topper.totalScore + "/" + maxScore);
     html = html.replace(/{{SCORE_GAP}}/g, topper.totalScore - student.totalScore);
     html = html.replace(/{{ACCURACY}}/g, totalAccuracy);
@@ -1496,30 +1713,34 @@ function generateAnalysisPage(student, rank, topper, classStats, compTemplate, t
     html = html.replace(/{{POTENTIAL_SCORE}}/g, potentialScore + "/" + maxScore);
     html = html.replace(/{{MARKS_EARNED}}/g, marksEarned);
     html = html.replace(/{{MARKS_LOST}}/g, marksLost);
-    html = html.split('{{WEAKEST_SUBJECT}}').join(weakestSubj);
-    html = html.split('{{WEAKEST_SCORE}}').join(student.subjects[weakestSubj]?.score || 0);
-    html = html.split('{{TOPPER_WEAKEST_SCORE}}').join(topper.subjects[weakestSubj]?.score || 0);
-    html = html.split('{{MARKS_LOST_WEAKEST}}').join(marksLostWeakest);
+    html = html.split("{{WEAKEST_SUBJECT}}").join(weakestSubj);
+    html = html.split("{{WEAKEST_SCORE}}").join(student.subjects[weakestSubj]?.score || 0);
+    html = html.split("{{TOPPER_WEAKEST_SCORE}}").join(topper.subjects[weakestSubj]?.score || 0);
+    html = html.split("{{MARKS_LOST_WEAKEST}}").join(marksLostWeakest);
 
     let rowsHtml = "";
     for (const subj of orderedSubjs) {
       const stats = student.subjects[subj] || { correct: 0, wrong: 0, skipped: 0, score: 0 };
       const topStats = topper.subjects[subj] || { score: 0 };
       const avg = classStats[subj]?.avg || 0;
+      const subjMax =
+        state.subjectMaxMarks && state.subjectMaxMarks[subj] !== undefined
+          ? state.subjectMaxMarks[subj]
+          : maxSubjScore;
       const attempted = stats.correct + stats.wrong;
       const acc = attempted > 0 ? Math.round((stats.correct / attempted) * 100) : 0;
       const qInSubj = Object.keys(state.answerKey[subj] || {}).length;
       const attRate = qInSubj > 0 ? Math.round((attempted / qInSubj) * 100) : 0;
-      
+
       let statusTag = '<span class="tag tag-avg">Average</span>';
       if (stats.score > avg + 10) statusTag = '<span class="tag tag-strong">Strong</span>';
       else if (stats.score < avg - 10) statusTag = '<span class="tag tag-weak">Weak</span>';
 
       rowsHtml += `<tr>
                 <td>${subj}</td>
-                <td><b>${stats.score}/${maxSubjScore}</b></td>
-                <td style="color: var(--success)">${topStats.score}/${maxSubjScore}</td>
-                <td>${avg}/${maxSubjScore}</td>
+                <td><b>${stats.score}/${subjMax}</b></td>
+                <td style="color: var(--success)">${topStats.score}/${subjMax}</td>
+                <td>${avg}/${subjMax}</td>
                 <td>${acc}%</td>
                 <td>${attRate}%</td>
                 <td>${statusTag}</td>

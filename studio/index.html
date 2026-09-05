@@ -77,6 +77,12 @@
                         <p>720 Marks (+4 / -1)</p>
                         <div class="badge">Standard</div>
                     </div>
+                    <div class="exam-card" onclick="selectExam('NEW_NEET')">
+                        <div class="exam-icon neet"><i data-lucide="sparkles"></i></div>
+                        <h3>NEW NEET PROCESSOR</h3>
+                        <p>720 Marks (180 Questions)</p>
+                        <div class="badge">New NEET</div>
+                    </div>
                     <div class="exam-card" onclick="selectExam('JEE_ADV_1')">
                         <div class="exam-icon jee"><i data-lucide="flask-conical"></i></div>
                         <h3>JEE ADVANCED 1</h3>
@@ -212,6 +218,23 @@
                         <h2>Final Result Generation</h2>
                         <input type="text" id="exam-name" placeholder="Enter Mock Test Name (e.g. JEE-01)" class="exam-input">
                     </div>
+
+                    <!-- Subject Max Marks Configuration -->
+                    <div class="subject-marks-card" id="subject-marks-card">
+                        <div class="subject-marks-header">
+                            <div class="subject-marks-title">
+                                <i data-lucide="sliders"></i>
+                                <span>Subject Max Marks</span>
+                            </div>
+                            <div class="total-marks-badge">
+                                Total: <span id="config-total-marks">720</span> Marks
+                            </div>
+                        </div>
+                        <div class="subject-marks-grid" id="subject-marks-grid">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
                     <div class="stats-grid">
                         <div class="stat-card">
                             <span class="stat-lbl">Processed</span>

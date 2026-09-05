@@ -202,9 +202,8 @@ def generate_reports():
     lb_html = lb_html.replace("{{EXAM_NAME}}", "AKAAR JEE")
     lb_html = lb_html.replace("{{EXAM_TYPE}}", "JEE MAINS")
     lb_html = lb_html.replace("{{DATE}}", today)
-    lb_html = lb_html.replace("{{SUBJ1}}", "Physics")
-    lb_html = lb_html.replace("{{SUBJ2}}", "Chemistry")
-    lb_html = lb_html.replace("{{SUBJ3}}", "Maths")
+    subj_headers = '<th class="subj-col">Physics</th><th class="subj-col">Chemistry</th><th class="subj-col">Maths</th>'
+    lb_html = lb_html.replace("{{SUBJECT_HEADERS}}", subj_headers)
     lb_html = lb_html.replace("{{ROWS}}", rows_html)
     
     leaderboard_pdf_path = os.path.join(OUTPUT_DIR, "AKAAR_JEE_Leaderboard.pdf")
