@@ -254,6 +254,7 @@
                             <i data-lucide="zap"></i> Calculate & Generate Reports
                         </button>
                         <div id="export-buttons" class="export-row hidden">
+                            <button class="btn-purple" onclick="downloadAllIndividualJSONZIP()"><i data-lucide="archive"></i> Student JSONs (ZIP)</button>
                             <button class="btn-success" onclick="downloadLeaderboard()"><i data-lucide="table"></i> Leaderboard (CSV)</button>
                             <button class="btn-success" onclick="downloadLeaderboardPDF()"><i data-lucide="file-text"></i> Leaderboard (PDF)</button>
                             <button class="btn-success" onclick="downloadScoreCards()"><i data-lucide="file-text"></i> Scorecards (PDF)</button>
@@ -271,8 +272,11 @@
                         <h2>Student Rankings & Individual Reports</h2>
                         <div class="leaderboard-actions">
                             <input type="text" id="student-search" placeholder="Search student..." oninput="filterLeaderboard(this.value)">
+                            <button class="btn-analytics" onclick="downloadAllIndividualJSONZIP()">
+                                <i data-lucide="file-archive"></i> Download All JSONs (ZIP)
+                            </button>
                             <button class="btn-primary" onclick="downloadAllIndividualZIP()">
-                                <i data-lucide="folder-archive"></i> Download All (ZIP)
+                                <i data-lucide="folder-archive"></i> Download All PDFs (ZIP)
                             </button>
                         </div>
                     </div>

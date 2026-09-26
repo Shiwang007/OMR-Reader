@@ -1079,6 +1079,7 @@ async function calculateFinal() {
       totalSkipped = 0,
       totalScore = 0;
     const subjectStats = {};
+    const subjectAnalytics = [];
 
     for (const subject of activeSubjects) {
       let correct = 0,
@@ -1109,6 +1110,7 @@ async function calculateFinal() {
           ? Object.keys(keySection).sort((a, b) => parseInt(a) - parseInt(b))
           : Object.keys(questions).sort((a, b) => parseInt(a) - parseInt(b));
 
+      const questionList = [];
       for (const qNum of qNums) {
         const answer = questions[qNum] !== undefined ? questions[qNum] : "";
         const correctAns = keySection[qNum] || "";
@@ -1122,8 +1124,42 @@ async function calculateFinal() {
           skipped++;
         }
         subjScore += pts;
+
+        questionList.push({
+          questionNumber: parseInt(qNum, 10) || qNum,
+          subjectName: subject,
+          studentAnswer: answer || "",
+          correctAnswer: correctAns || "",
+          status: status === "partial" ? "correct" : status,
+          marks: pts,
+        });
       }
+
       subjectStats[subject] = { correct, wrong, skipped, score: subjScore };
+
+      const subjMaxScore =
+        state.subjectMaxMarks && state.subjectMaxMarks[subject] !== undefined
+          ? Number(state.subjectMaxMarks[subject])
+          : getDefaultSubjMark(subject);
+
+      const subjAttempted = correct + wrong;
+      const subjAccuracy =
+        subjAttempted > 0 ? Math.round((correct / subjAttempted) * 1000) / 10 : 0;
+      const subjPercentage =
+        subjMaxScore > 0 ? Math.round((subjScore / subjMaxScore) * 1000) / 10 : 0;
+
+      subjectAnalytics.push({
+        name: subject,
+        score: subjScore,
+        maxScore: subjMaxScore,
+        percentage: subjPercentage,
+        accuracy: subjAccuracy,
+        correct,
+        wrong,
+        skipped,
+        questions: questionList,
+      });
+
       totalCorrect += correct;
       totalWrong += wrong;
       totalSkipped += skipped;
@@ -1139,10 +1175,45 @@ async function calculateFinal() {
       totalSkipped,
       attempted: totalCorrect + totalWrong,
       subjects: subjectStats,
+      subjectAnalytics: subjectAnalytics,
     });
   }
 
   leaderboard.sort((a, b) => b.totalScore - a.totalScore);
+
+  const totalStudents = leaderboard.length;
+  const testMaxScore =
+    state.totalMaxScore ||
+    (activeSubjects.reduce((acc, sub) => acc + getDefaultSubjMark(sub), 0) || 300);
+
+  leaderboard.forEach((student, index) => {
+    const rank = index + 1;
+    const accuracy =
+      student.attempted > 0
+        ? Math.round((student.totalCorrect / student.attempted) * 1000) / 10
+        : 0;
+    const percentage =
+      testMaxScore > 0
+        ? Math.round((student.totalScore / testMaxScore) * 1000) / 10
+        : 0;
+
+    student.analytics = {
+      summary: {
+        totalScore: student.totalScore,
+        maxScore: testMaxScore,
+        percentage: percentage,
+        rank: rank,
+        totalStudents: totalStudents,
+        accuracy: accuracy,
+        attempted: student.attempted,
+        correct: student.totalCorrect,
+        wrong: student.totalWrong,
+        skipped: student.totalSkipped,
+      },
+      subjects: student.subjectAnalytics,
+    };
+  });
+
   state.leaderboard = leaderboard;
   state.examName = examName;
 
@@ -2061,35 +2132,96 @@ function downloadCheckedOMRsJSONZIP() {
 
 function downloadIndividualJSON(index) {
   const student = state.leaderboard[index];
-  if (!student) return;
-  
-  const file = state.files.find(f => (f.displayName || f.name.replace(/\.[^/.]+$/, "")) === student.name);
-  const x_shift = file ? file.x : 0;
-  const y_shift = file ? file.y : 0;
-  
-  const jsonData = {
-    student_name: student.name,
-    exam_type: state.examType,
-    calibration: {
-      x_shift: x_shift,
-      y_shift: y_shift
-    },
-    answers: student.data,
-    score_summary: {
-      total_score: student.totalScore,
-      total_correct: student.totalCorrect,
-      total_wrong: student.totalWrong,
-      total_skipped: student.totalSkipped,
-      attempted: student.attempted,
-      subjects: student.subjects
-    }
+  if (!student || !student.analytics) {
+    alert("Please calculate reports first.");
+    return;
+  }
+
+  const exportData = {
+    name: student.name,
+    testName: state.examName || "Test Report",
+    testDate: new Date().toISOString().split("T")[0],
+    examType: state.examType,
+    summary: student.analytics.summary,
+    subjects: student.analytics.subjects,
   };
-  
-  const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+    type: "application/json",
+  });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `${student.name}_OMR_Data.json`;
+  const cleanName = student.name.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_");
+  a.download = `${cleanName}_Analytics.json`;
   a.click();
-  setStatus(`JSON for ${student.name} downloaded`);
+  setStatus(`Pre-calculated JSON for ${student.name} downloaded`);
 }
+
+function downloadBatchAnalyticsJSON() {
+  if (!state.leaderboard || state.leaderboard.length === 0) {
+    setStatus("Calculate first");
+    alert("Please calculate final results first.");
+    return;
+  }
+
+  const exportData = {
+    testName: state.examName || "Test Report",
+    testDate: new Date().toISOString().split("T")[0],
+    examType: state.examType,
+    totalStudents: state.leaderboard.length,
+    maxScore: state.totalMaxScore,
+    reports: state.leaderboard.map((student) => ({
+      name: student.name,
+      summary: student.analytics.summary,
+      subjects: student.analytics.subjects,
+    })),
+  };
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+    type: "application/json",
+  });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const cleanExam = (state.examName || "Mock_Test").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_");
+  a.download = `${cleanExam}_Analytics_Batch.json`;
+  a.click();
+  setStatus("Test Analytics JSON downloaded successfully");
+}
+
+async function downloadAllIndividualJSONZIP() {
+  if (!state.leaderboard || state.leaderboard.length === 0) {
+    setStatus("Calculate first");
+    alert("Please calculate final results first.");
+    return;
+  }
+
+  try {
+    setStatus("Generating Student JSONs ZIP archive...");
+    const zip = new JSZip();
+
+    state.leaderboard.forEach((student, index) => {
+      const exportData = {
+        name: student.name,
+        testName: state.examName || "Test Report",
+        testDate: new Date().toISOString().split("T")[0],
+        examType: state.examType,
+        summary: student.analytics.summary,
+        subjects: student.analytics.subjects,
+      };
+
+      const rank = student.analytics?.summary?.rank || index + 1;
+      const cleanName = student.name.replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_");
+      zip.file(`${rank}_${cleanName}_Analytics.json`, JSON.stringify(exportData, null, 2));
+    });
+
+    const content = await zip.generateAsync({ type: "blob" });
+    const cleanExam = (state.examName || "Exam").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_");
+    saveAs(content, `${cleanExam}_Student_JSONs.zip`);
+    setStatus("Student JSONs ZIP downloaded successfully");
+  } catch (err) {
+    console.error("ZIP Generation error:", err);
+    alert("Failed to generate JSONs ZIP: " + err.message);
+  }
+}
+
 
